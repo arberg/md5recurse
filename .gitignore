@@ -24,6 +24,4 @@
 #This project specific
 /bin
 /lib
-/libs
 /out
-.cache
