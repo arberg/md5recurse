@@ -1,0 +1,91 @@
+#!/bin/bash
+MD5_SHARE=md5
+MD5_DIR=/mnt/user/${MD5_SHARE}
+BACKUP_DISKS="/mnt/disk1 /mnt/disk3"
+
+function waitForFreeProcessor {
+	#CORES="$(cat /proc/cpuinfo | egrep "core id|physical id" | tr -d "\n" | sed s/physical/\\nphysical/g | grep -v ^$ | sort | uniq | wc -l)"
+	CORE_THREADS="$(nproc)"
+	while (( $(jobs | wc -l) >= $((2*$CORE_THREADS)) ))
+	do
+		#echo $(jobs | wc -l)
+		sleep 1
+		#jobs > /dev/null
+	done
+}
+
+function mkdir_perm() {
+	if [ ! -d $1 ]; then
+		parent=$(dirname "$1")
+		if [ ! -d ${parent} ]; then	
+			mkdir_perm ${parent}
+		fi
+		mkdir $1
+		chown nobody:users $1
+		chmod a+w $1
+	fi
+}
+
+# trap ctrl-c and call ctrl_c()
+function killGroup() {
+  kill -TERM -$$
+}
+trap killGroup INT
+
+PID=/var/run/md5_array.pid
+# If a previous invokation of this script is already running, exit
+if [ -f $PID ]; then
+  if ps h `cat $PID` | grep `basename $0` ; then
+      echo "md5_array already running"
+      exit 0
+  fi
+fi
+
+if [ "$USER" != "root" ]
+then
+  echo "WARNING: Not running as root"
+  # echo "ERROR: Run as root"
+  # exit 1
+fi  
+
+OPTIONS=$*
+
+renice 19 $$ > /dev/null
+function doMd5() {
+	timeStart=$(date +%s)
+	for SCAN_DIR in /mnt/disk* ; do
+		# For debugging: Remove & to make it easier to break and kill for-loop process
+		DISK=$(basename $SCAN_DIR)
+		# -Xmx sets upper limit on memory available, it will only use so much if needed. If not using --enableReadGlobalMd5 then 256M is enough. JAVA_OPTS is read by scala command.
+		scala -J-Xmx1024M -cp /mnt/user/app/source/classes Md5Recurse.Md5Recurse $* -q -e ISO-8859-1 -p "${DISK}" $OPTIONS  ${SCAN_DIR} &
+		sleep 1 
+		waitForFreeProcessor
+	done
+	wait 
+	timeEnd=$(date +%s)
+	echo "$*: $((timeEnd-timeStart))s"
+}
+
+function timeTest(){
+	time1=$(date +%s)
+	echo 1
+	doMd5 --globaldir /mnt/user/md5
+	time2=$(date +%s)
+	echo 2
+	doMd5 --globaldir /mnt/user/md5 --enableLocalMd5Data 
+	time3=$(date +%s)
+	echo 3
+	doMd5 --enableLocalMd5Data
+	time4=$(date +%s)
+	echo 4
+	doMd5 --enableLocalMd5Data -f
+	time5=$(date +%s)
+
+	echo local forecupdate $((time5-time4))s -  local $((time4-time3))s - both $((time3-time2))s - global $((time2-time1))s 
+}
+
+# timeTest
+# timeTest
+
+# doMd5 --deletemd5
+doMd5 --enableLocalMd5Data -f

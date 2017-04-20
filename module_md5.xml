@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project name="module_md5" default="compile.module.md5">
+  <dirname property="module.md5.basedir" file="${ant.file.module_md5}"/>
+  
+  <property name="module.jdk.home.md5" value="${jdk.home.1.8}"/>
+  <property name="module.jdk.bin.md5" value="${jdk.bin.1.8}"/>
+  <property name="module.jdk.classpath.md5" value="jdk.classpath.1.8"/>
+  
+  <property name="compiler.args.md5" value="-encoding UTF-8 -source 8 -target 8 ${compiler.args}"/>
+  
+  <property name="md5.output.dir" value="${module.md5.basedir}/bin"/>
+  <property name="md5.testoutput.dir" value="${module.md5.basedir}/bin"/>
+  
+  <path id="md5.module.bootclasspath">
+    <!-- Paths to be included in compilation bootclasspath -->
+  </path>
+  
+  <path id="md5.module.production.classpath">
+    <path refid="${module.jdk.classpath.md5}"/>
+    <pathelement location="${basedir}/libs/scalax-0.1.jar"/>
+    <path refid="library.scala-sdk-2.11.6.classpath"/>
+  </path>
+  
+  <path id="md5.runtime.production.module.classpath">
+    <pathelement location="${md5.output.dir}"/>
+    <pathelement location="${basedir}/libs/scalax-0.1.jar"/>
+    <path refid="library.scala-sdk-2.11.6.classpath"/>
+  </path>
+  
+  <path id="md5.module.classpath">
+    <pathelement location="${md5.output.dir}"/>
+    <path refid="${module.jdk.classpath.md5}"/>
+    <pathelement location="${basedir}/libs/scalax-0.1.jar"/>
+    <path refid="library.scala-sdk-2.11.6.classpath"/>
+  </path>
+  
+  <path id="md5.runtime.module.classpath">
+    <pathelement location="${md5.output.dir}"/>
+    <pathelement location="${basedir}/libs/scalax-0.1.jar"/>
+    <path refid="library.scala-sdk-2.11.6.classpath"/>
+  </path>
+  
+  
+  <patternset id="excluded.from.module.md5">
+    <patternset refid="ignored.files"/>
+  </patternset>
+  
+  <patternset id="excluded.from.compilation.md5">
+    <patternset refid="excluded.from.module.md5"/>
+  </patternset>
+  
+  <path id="md5.module.sourcepath">
+    <dirset dir="${module.md5.basedir}">
+      <include name="src"/>
+    </dirset>
+  </path>
+  
+  
+  <target name="compile.module.md5" depends="compile.module.md5.production,compile.module.md5.tests" description="Compile module MD5"/>
+  
+  <target name="compile.module.md5.production" depends="register.custom.compilers" description="Compile module MD5; production classes">
+    <mkdir dir="${md5.output.dir}"/>
+    <javac2 destdir="${md5.output.dir}" debug="${compiler.debug}" nowarn="${compiler.generate.no.warnings}" memorymaximumsize="${compiler.max.memory}" fork="true" executable="${module.jdk.bin.md5}/javac">
+      <compilerarg line="${compiler.args.md5}"/>
+      <bootclasspath refid="md5.module.bootclasspath"/>
+      <classpath refid="md5.module.production.classpath"/>
+      <src refid="md5.module.sourcepath"/>
+      <patternset refid="excluded.from.compilation.md5"/>
+    </javac2>
+    
+    <copy todir="${md5.output.dir}">
+      <fileset dir="${module.md5.basedir}/src">
+        <patternset refid="compiler.resources"/>
+        <type type="file"/>
+      </fileset>
+    </copy>
+  </target>
+  
+  <target name="compile.module.md5.tests" depends="register.custom.compilers,compile.module.md5.production" description="compile module MD5; test classes" unless="skip.tests"/>
+  
+  <target name="clean.module.md5" description="cleanup module">
+    <delete dir="${md5.output.dir}"/>
+    <delete dir="${md5.testoutput.dir}"/>
+  </target>
+</project>

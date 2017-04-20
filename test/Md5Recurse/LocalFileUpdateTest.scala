@@ -1,0 +1,153 @@
+package Md5Recurse
+
+import org.scalatest._
+
+import scalax.file.Path
+import scalax.io.Codec
+// http://jesseeichar.github.io/scala-io-doc/0.4.3/index.html#!/file/string_to_file
+
+class LocalFileUpdateTest extends FlatSpec with TestConfig {
+
+  val MD5DATA_EXT = ".md5data"
+  val MD5SUM_EXT = ".md5"
+
+  "Local file" should "only be updated if changes exists" in {
+    def testLocalFileWrittenAndNotUpdated(localMd5FileExtension: String, md5ToolParam: Array[String]) {
+      println(s"Working on extension: $localMd5FileExtension")
+      val testDirPath = copyTestResources / "onlyTwoFiles"
+      testDirPath.children().size should be(2)
+      val filepath1 = testDirPath / "dummy1.log"
+      val filepath2 = testDirPath / "testfileРС_WithNonISO8859-chars_in_name_Looking_like_PC.log"
+      filepath1.exists should be(true)
+      filepath2.exists should be(true)
+
+      // scan file
+      val prefix = "testLocalFiles"
+      val localMd5FilePath = testDirPath / Path("." + prefix + localMd5FileExtension)
+      localMd5FilePath.exists should be(false)
+
+      def runMd5Recurse(): Unit = {
+        Md5Recurse.main(md5ToolParam ++ Array("-p", prefix, testDirPath.path))
+      }
+
+      runMd5Recurse()
+
+      // We expect a local MD5 file has been written
+      localMd5FilePath.exists should be(true)
+      localMd5FilePath.lines().exists(_.contains("4dfb6df790f3b8b2bf84145c6fb32bac")) should be(true)
+
+      // Change the test-file
+      filepath1.write("New Content")
+      runMd5Recurse()
+      // We expect file to have changed content
+      localMd5FilePath.lines().exists(_.contains("f45cc89d6028945712f568082080e7c5")) should be(true)
+
+      // Run again, but this time we expect that the local files are up2date so they should not be rewritten
+      Thread.sleep(20)
+      // OS may have minimimum time measurement of 16 ms, so sleep a bit
+      val lastModified = localMd5FilePath.lastModified
+      runMd5Recurse()
+      assert(localMd5FilePath.lastModified === lastModified, s"file $localMd5FileExtension should not have been updated, because content is the same")
+
+      // Run again, file still up2date, but this time with no attributes written
+      deleteMd5FileAttributes(testDirPath)
+      runMd5Recurse()
+      localMd5FilePath.lastModified should be(lastModified)
+
+      // Modify the local data file, so lines are not correctly sorted, and run again. File should still be up2date
+      val fileLinesReversed = localMd5FilePath.lines().toList.reverse
+      localMd5FilePath.writeStrings(fileLinesReversed, "\n")
+      val lastModified2 = localMd5FilePath.lastModified
+      runMd5Recurse()
+      localMd5FilePath.lastModified should not be (lastModified2)
+
+      // Delete the source files and check that md5 file gets cleaned up
+      filepath1.delete()
+      filepath2.delete()
+      runMd5Recurse()
+      localMd5FilePath.exists should be(false)
+    }
+
+    testLocalFileWrittenAndNotUpdated(MD5DATA_EXT, Array("--enableLocalMd5Data"))
+    testLocalFileWrittenAndNotUpdated(MD5SUM_EXT, Array("--enableLocalMd5Sum"))
+    testLocalFileWrittenAndNotUpdated(MD5DATA_EXT, Array("--enableLocalMd5Data", "--print"))
+    testLocalFileWrittenAndNotUpdated(MD5SUM_EXT, Array("--enableLocalMd5Sum", "--print"))
+  }
+
+  "Local file" should "honor specified encoding" in {
+    def testLocalFileWrittenInEncoding(localMd5FileExtension: String, md5ToolParam: Array[String], expectForcedUTF8: Boolean) {
+      val testDirPath = copyTestResources / "encoding"
+      val filepath = testDirPath / "danish_øæåØÆÅ.log"
+      filepath.exists should be(true)
+
+      // scan file
+      val localMd5FilePath = testDirPath / localMd5FileExtension
+      localMd5FilePath.exists should be(false)
+
+      def verify(testDescription: String, theCodec: Codec) {
+        // We expect a local MD5 file has been written
+        println(testDescription)
+        withClue(localMd5FilePath) {
+          localMd5FilePath.exists should be(true)
+        }
+        localMd5FilePath.lines()(codec = theCodec).foreach(println(_))
+        localMd5FilePath.lines()(codec = theCodec).exists(_.contains("danish_øæåØÆÅ")) should be(true)
+        localMd5FilePath.lines()(Codec.UTF8).exists(_.contains("danish_øæåØÆÅ")) should be(theCodec == Codec.UTF8)
+      }
+
+      deleteMd5FileAttributes(testDirPath)
+      Md5Recurse.main(md5ToolParam ++ Array(testDirPath.path))
+      verify("UTF-8 default", Codec.UTF8)
+      Md5Recurse.main(md5ToolParam ++ Array("--encoding", "UTF-8", testDirPath.path))
+      verify("UTF-8 specified", Codec.UTF8)
+      Md5Recurse.main(md5ToolParam ++ Array("--encoding", "ISO-8859-1", testDirPath.path))
+      verify("ISO-8859-1 specified", if (expectForcedUTF8) Codec.UTF8 else Codec.ISO8859)
+      Md5Recurse.main(md5ToolParam ++ Array("--encoding", "UTF-16", testDirPath.path))
+      verify("UTF-16 specified", if (expectForcedUTF8) Codec.UTF8 else Codec("UTF-16"))
+    }
+
+    testLocalFileWrittenInEncoding(MD5DATA_EXT, Array("--enableLocalMd5Data"), true)
+    testLocalFileWrittenInEncoding(MD5SUM_EXT, Array("--enableLocalMd5Sum"), false)
+    testLocalFileWrittenInEncoding(MD5DATA_EXT, Array("--enableLocalMd5Data", "--print"), true)
+    testLocalFileWrittenInEncoding(MD5SUM_EXT, Array("--enableLocalMd5Sum", "--print"), false)
+  }
+
+  "encoding" should "write .md5 files files with BOM or not BOM" in {
+    val testDirPath = copyTestResources / "allfiles"
+
+    // scan file
+    val localMd5FilePath = testDirPath / MD5SUM_EXT
+    localMd5FilePath.exists should be(false)
+
+    deleteMd5FileAttributes(testDirPath)
+//    Md5Recurse.main(Array("--enableLocalMd5Sum", "--enableLocalMd5Data", "-e", "ISO-8859-1", "--globaldir", TEST_EXECUTION_GLOBAL_DIR, testDirPath.path))
+    Md5Recurse.main(Array("--enableLocalMd5Sum", "--enableLocalMd5Data", "-e", "UTF-8-BOM", "--globaldir", TEST_EXECUTION_GLOBAL_DIR, testDirPath.path))
+    withClue(localMd5FilePath) {
+      localMd5FilePath.exists should be(true)
+    }
+    localMd5FilePath.lines().filter(_.contains("\uFEFF")).size >= 1 should be(true)
+
+    localMd5FilePath.delete()
+    Md5Recurse.main(Array("--enableLocalMd5Sum", "--enableLocalMd5Data", "-e", "UTF-8", "--globaldir", TEST_EXECUTION_GLOBAL_DIR, testDirPath.path))
+    localMd5FilePath.exists should be(true)
+    localMd5FilePath.lines().foreach(println(_))
+    localMd5FilePath.lines().filter(_.contains("\uFEFF")).isEmpty should be(true)
+
+    localMd5FilePath.delete()
+    Md5Recurse.main(Array("--enableLocalMd5Sum", "--enableLocalMd5Data", "-e", "ISO-8859-1", "--globaldir", TEST_EXECUTION_GLOBAL_DIR, testDirPath.path))
+    localMd5FilePath.exists should be(true)
+    localMd5FilePath.lines().foreach(println(_))
+    localMd5FilePath.lines().filter(_.contains("\uFEFF")).isEmpty should be(true)
+
+  }
+
+//  Outcommented because they kill JVM
+//  "help" should "print help" in {
+//    Md5Recurse.main(Array("--help"))
+//  }
+//
+//  "version" should "print version" in {
+//    Md5Recurse.main(Array("--version"))
+//  }
+
+}

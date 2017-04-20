@@ -1,0 +1,7 @@
+#!/bin/bash
+for SCAN_DIR in /mnt/disk* ; do
+	# For debugging: Remove & to make it easier to break and kill for-loop process
+	DISK=$(basename $SCAN_DIR)
+	scala -J-Xmx1024M /boot/bin/scala/Md5Recurse.jar -q -p "${DISK}" --deletemd5 /mnt/user
+done
+wait

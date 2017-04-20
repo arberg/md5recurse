@@ -1,0 +1,4 @@
+http://twmacinta.com/myjava/fast_md5.php
+fast-md5-2.7.1
+I have added loadAtPath to also check classpath. Also I have added usage of NativeLibs to load from jar.
+

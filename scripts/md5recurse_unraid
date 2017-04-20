@@ -1,0 +1,164 @@
+#!/bin/bash
+
+# Prefer to source scala location from cfg rather than take from environment, because crontab does not have .bashrc environment
+source $(dirname "$0")/md5recurse_unraid.cfg
+source $(dirname "$0")/java.cfg
+
+if [ ! -f "$MD5RECURSE_JAR" ] ; then
+	echo "ERROR missing Md5Recurse.jar, please check md5recurse_unraid.cfg: MD5RECURSE_JAR=$MD5RECURSE_JAR"
+	exit 1
+fi
+
+function waitForFreeProcessor {
+	#CORES="$(cat /proc/cpuinfo | egrep "core id|physical id" | tr -d "\n" | sed s/physical/\\nphysical/g | grep -v ^$ | sort | uniq | wc -l)"
+	CORE_THREADS="$(nproc)"
+	while (( $(jobs | wc -l) >= $((2*$CORE_THREADS)) ))
+	do
+		#echo $(jobs | wc -l)
+		sleep 1
+		#jobs > /dev/null
+	done
+}
+
+function mkdir_perm() {
+	if [ ! -d $1 ]; then
+		parent=$(dirname "$1")
+		if [ ! -d ${parent} ]; then	
+			mkdir_perm ${parent}
+		fi
+		mkdir $1
+		chown nobody:users $1
+		chmod a+w $1
+	fi
+}
+
+# trap ctrl-c and call ctrl_c()
+function killGroup() {
+	# xargs will trim leading space
+	PSGROUP=$(ps -o pgid= $$ | xargs)
+  echo
+  echo "Killing process group '$PSGROUP' (as $USER), please wait after sending first ^C"
+  kill -TERM -${PSGROUP}
+}
+
+cleanLocalDirMd5FilesWhichHaveBeenMovedBetweenDisks() {
+	# user may have moved files from one disk to another. So a .disk1.md5 file may be on disk2. Since we never run md5recurse on
+	# disk2 with prefix disk1, md5recurse cannot discover this. md5recurse does have a clean-local-files option, we could run with 
+	# each prefix for each disk, but instead we do the cleanup directly in bash
+
+	# echo "Cleaning incorrectly placed md5data"
+	# Note Dirs with  a '.disable_md5' will be skipped
+	for SCAN_DIR in /mnt/disk* /mnt/cache; do
+		for SCAN_DIR2 in /mnt/disk* /mnt/cache; do
+			if [ "$SCAN_DIR" != "$SCAN_DIR2" ] ; then
+				# For debugging: Remove & to make it easier to break and kill for-loop process
+				WRONGDISK=$(basename $SCAN_DIR2)
+				#echo "${SCAN_DIR}: Cleaning .${WRONGDISK}.md5 and .${WRONGDISK}.md5data"
+				find  ${SCAN_DIR} \( -name ".${WRONGDISK}.md5data" -o -name ".${WRONGDISK}.md5" \) -delete
+				#echo "${SCAN_DIR}: Finished .${WRONGDISK}.md5 and .${WRONGDISK}.md5data"
+			fi
+		done &
+	done 
+	wait 
+   	#echo "Finish cleaning all"
+}
+
+execMd5recurse() {
+	# -Xmx sets upper limit on memory available, it will only use so much if needed. If not using --enableReadGlobalMd5 or --global then 256M is enough. JAVA_OPTS is read by scala command.
+	JAVA_HOME="$JAVA_HOME" $JAVA_HOME/bin/java -Xmx1024M $DEBUG -jar ${MD5RECURSE_JAR} "$@"
+
+    # Command to execute jar using scala directly, no longer needed as scala is now included in jar
+	#JAVA_HOME="$JAVA_HOME" ${SCALA_PATH}/scala -J-Xmx1024M ${MD5RECURSE_JAR} "$@"
+}
+
+
+
+
+trap killGroup INT
+
+PID=/var/run/md5_array.pid
+# If a previous invokation of this script is already running, exit
+if [ -f $PID ]; then
+  if ps h `cat $PID` | grep `basename $0` ; then
+      echo "md5_array already running"
+      exit 0
+  fi
+fi
+
+if [ "$USER" != "root" ]
+then
+  echo "WARNING: Not running as root"
+  # echo "ERROR: Run as root"
+  # exit 1
+fi  
+
+
+##########################################################################
+########### backup current to archive                          ###########
+##########################################################################
+
+if [ "$ENABLE_GLOBAL_MD5_FILES" == "1" ] ; then
+	DATETIME=`date +%Y-%m-%d_%H%M` 
+	ARCHIVE_DIR=$MD5_GLOBAL_DIR/${ARCHIVE_PREFIX}${DATETIME}
+	mkdir_perm $ARCHIVE_DIR
+	cp $MD5_GLOBAL_DIR/disk*.md5data $MD5_GLOBAL_DIR/md5data.md5 $ARCHIVE_DIR
+	# remove again if in case of first backup
+	find $ARCHIVE_DIR -type d -empty -maxdepth 0 -delete
+fi
+
+####################################################################################
+########### Execute md5recurse simultaniously on each disk, then on user ###########
+####################################################################################
+OPTIONS="-q -e UTF-8-BOM $*"
+
+if [ "$ENABLE_GLOBAL_MD5_FILES" == "1" ] ; then
+	OPTIONS="--globaldir ${MD5_GLOBAL_DIR} $OPTIONS"
+fi
+
+renice 19 $$ > /dev/null
+
+# Note Dirs with  a '.disable_md5' will be skipped
+for SCAN_DIR in /mnt/disk* /mnt/cache; do
+	# For debugging: Remove & to make it easier to break and kill for-loop process
+	DISK=$(basename $SCAN_DIR)
+	execMd5recurse -p "${DISK}" $OPTIONS ${SCAN_DIR} &
+
+	waitForFreeProcessor
+done
+wait 
+
+execMd5recurse -p "user" $OPTIONS /mnt/user
+
+cleanLocalDirMd5FilesWhichHaveBeenMovedBetweenDisks
+
+##########################################################################
+########### Backup md5 global data to other disks on the array ###########
+##########################################################################
+
+if [ "$ENABLE_GLOBAL_MD5_FILES" == "1" ] ; then
+	GLOBAL_MD5_FILE_PREFIX_1="_global.md5data"
+	GLOBAL_MD5_FILE_PREFIX="*_global.md5data"
+
+	pushd ${MD5_GLOBAL_DIR} > /dev/null
+	md5sum -b ${GLOBAL_MD5_FILE_PREFIX} > md5data.md5
+	popd > /dev/null
+
+	for DISKNAME in ${MD5_GLOBAL_BACKUP_DISKS}  ; do
+		# For debugging: Remove & to make it easier to break and kill for-loop process
+		DISK=$(basename $DISKNAME)
+		BACKUP_DISK_DIR=/mnt/${DISK}/${MD5_GLOBAL_SHARE}/${PREFIX_FOR_BACKUP_FOLDER}${DISK}
+		mkdir_perm ${BACKUP_DISK_DIR}
+		cp -p ${MD5_GLOBAL_DIR}/${GLOBAL_MD5_FILE_PREFIX} ${MD5_GLOBAL_DIR}/md5data.md5 ${BACKUP_DISK_DIR}
+	done
+
+	# Warning: This is actually a bit dangerous if we do rm -rf. Am I sure the print does not contain a badly excaped slash, causing be to delete root? pushd necessary or delete runs in wrong dir. Hence move to recyclebin, which can be autocleaned elsewhere on monthly basis or similar
+	pushd $MD5_GLOBAL_DIR  > /dev/null
+	[ ! -d .Recycle.Bin ] && mkdir .Recycle.Bin
+	find $MD5_GLOBAL_DIR -name "${ARCHIVE_PREFIX}*" -type d -maxdepth 1 | sort -r | awk '{i=i+1; if(i>3)print }' | xargs -L 1 -I {} mv {} .Recycle.Bin
+	popd > /dev/null
+
+	DATE=$(date "+%Y.%m.%d")
+	echo "$DATE Finished, executed with options '${OPTIONS}'" >> ${MD5_GLOBAL_DIR}/md5recurse_unraid.log
+fi
+
+[ "$LOG" != "" ] && echo "$DATE Finished, executed with options '${OPTIONS}'" >> ${LOG}

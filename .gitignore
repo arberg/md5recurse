@@ -1,0 +1,29 @@
+# Gradle/IntelliJ build folder
+.gradle
+/build
+
+# IntelliJ Idea Project user files
+/.idea/inspectionProfiles
+/.idea/libraries
+
+# misc frequently changes with a jdk1_7 <> jdk1_8 line, and it is also user dependent with paths
+/.idea/misc.xml
+/.idea/workspace.xml
+/.idea/tasks.xml
+/.idea/gradle.xml
+
+# Include IntelliJ Idea .iml files even if they change frequently, because they contain important and not easily recreated content for project. This is true for java project, not for Android project.
+#*.iml
+#*/*.iml
+
+#Mac Spam
+**/.DS_Store 
+
+
+
+#This project specific
+/bin
+/lib
+/libs
+/out
+.cache
