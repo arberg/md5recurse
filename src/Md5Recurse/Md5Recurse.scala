@@ -5,8 +5,6 @@ import java.security.MessageDigest
 import java.text.SimpleDateFormat
 import java.util.Calendar
 
-import scala.collection.mutable.ListBuffer
-
 // IntelliJ frequently deletes the import or changes it:
 // import WordWrap._
 import WordWrap._
@@ -479,27 +477,17 @@ object Md5Recurse {
   }
 
   def printDirsOutsideScope(dataFileUpdater: DataFileUpdater, fileSet: DirToFileMap[Md5FileInfo], configSrcDirs: Iterable[File]) {
-    val dirsToUpdate = ListBuffer[(File, Map[String, Md5FileInfo])]()
     val config = Config.it
-    Timer("Md5Recurse.printDirsOutsideScope.buildList", config.logPerformance) { () =>
-      for (
-        prevMapDir <- fileSet.map
-        if !configSrcDirs.exists({
-          f => (prevMapDir._1.getPath() + File.separator).startsWith(f.getPath() + File.separator)
-        })
-      ) {
-        dirsToUpdate += prevMapDir
-      }
+    for (
+      prevMapDir <- fileSet.map
+      if !configSrcDirs.exists({
+        f => (prevMapDir._1.getPath() + File.separator).startsWith(f.getPath() + File.separator)
+      })
+    ) {
+      if (Config.debugLog) println("Writing outside dir: " + prevMapDir)
+      dataFileUpdater.updateFilesIncludePendingChanges(prevMapDir._1, prevMapDir._2)
     }
-    Timer("Md5Recurse.printDirsOutsideScope.doUpdate", config.logPerformance) { () =>
-      for (prevMapDir <- dirsToUpdate) {
-        if (Config.debugLog) println("Writing outside dir: " + prevMapDir)
-        dataFileUpdater.updateFilesIncludePendingChanges(prevMapDir._1, prevMapDir._2)
-      }
-    }
-    Timer("Md5Recurse.printDirsOutsideScope.updateFilesFinalPendingChanges", config.logPerformance) { () =>
-      dataFileUpdater.updateFilesFinalPendingChanges()
-    }
+    dataFileUpdater.updateFilesFinalPendingChanges()
   }
 
   // Should be split into parent with writer ability
