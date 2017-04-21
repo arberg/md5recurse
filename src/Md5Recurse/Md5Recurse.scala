@@ -273,16 +273,6 @@ object Md5Recurse {
     writeMd5sumFiles(dir, l)
   }
 
-  def writeGlobalMd5data(writer: PrintWriter, dirPath: File, md5s: List[Md5FileInfo]) {
-    if (md5s.size > 0) {
-      writer.println(">" + dirPath.getAbsolutePath);
-      for (md5 <- md5s) {
-        writer.println(md5.exportDataLineFileName);
-      }
-      writer.flush
-    }
-  }
-
   def printMd5Hashes(dirPath: File, md5s: List[Md5FileInfo]) {
     if (md5s.size > 0) {
       // dirPath will be null if single file scan
@@ -419,79 +409,9 @@ object Md5Recurse {
     (md5s.toList, failures.toList, failureMsgs.toList)
   }
 
-  class GlobalWriter(config: Config) {
-    val enabled = config.writeMd5DataGlobally
-    val realWriter = if (enabled) new GlobalWriterReal(config) else null
-
-    def write(dir: File, md5s: List[Md5FileInfo]) {
-      if (enabled) realWriter.write(dir, md5s)
-    }
-
-    def close() {
-      if (enabled) realWriter.close()
-    }
-
-    class GlobalWriterReal(config: Config) {
-      val tmpGlobalDataFile = new File(config.tmpMd5dataGlobalFilePath())
-      val writer: PrintWriter = new PrintWriter(tmpGlobalDataFile, "UTF-8")
-
-      def write(dir: File, md5s: List[Md5FileInfo]) {
-        writeGlobalMd5data(writer, dir, md5s)
-        if (!config.doVerify) {
-          // Flush more quickly when check'ing md5's because it'll take longer anyway, and in case command is C-c'ed its worth having the extra output, plus it gives comfort when seeing it run
-          writer.flush
-        }
-      }
-
-      def close() {
-        writer.close()
-        val filename = Config.it.md5dataGlobalFilePath()
-        val globalDataFile = new File(filename)
-        if (globalDataFile.exists()) globalDataFile.delete();
-        tmpGlobalDataFile.renameTo(globalDataFile)
-      }
-    }
-
-  }
 
   // Should be split into parent with writer ability
-  class FailureWriter(config: Config) {
-    val enabled = Config.it.writeMd5DataGlobally
-    var writer: Option[PrintWriter] = None
-    var msgWriter: Option[PrintWriter] = None
-
-    def init() {
-      if (msgWriter.isEmpty) {
-        msgWriter = Some(new PrintWriter(config.failureLogFile(), "UTF-8"))
-      }
-      if (writer.isEmpty) {
-        writer = Some(new PrintWriter(config.failureFile(), "UTF-8"))
-      }
-    }
-
-    def write(dir: File, failureMd5s: List[Md5FileInfo], failureMessages: List[String]) {
-      if (enabled && !failureMessages.isEmpty) {
-        init()
-        for (failure <- failureMessages) {
-          msgWriter.get.println(failure)
-        }
-        msgWriter.get.flush
-        writeGlobalMd5data(writer.get, dir, failureMd5s)
-        writer.get.flush
-      }
-    }
-
-    def close() {
-      if (writer.isDefined) {
-        writer.get.close()
-      }
-      if (msgWriter.isDefined) {
-        msgWriter.get.close()
-      }
-    }
-  }
-
-  def execute(config: Config) {
+   def execute(config: Config) {
     Md5Recurse.initNativeLibrary()
 
     val fileSet =
