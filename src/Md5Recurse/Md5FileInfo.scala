@@ -1,6 +1,6 @@
 package Md5Recurse
 
-import java.io.{File, FileInputStream, FileNotFoundException}
+import java.io.{File, FileNotFoundException}
 import java.nio.charset.MalformedInputException
 import java.nio.file.attribute.UserDefinedFileAttributeView
 
@@ -27,33 +27,13 @@ object Md5FileInfo {
 
   // read file and generate md5sum
   def readFileGenerateMd5Sum(file: File, updateFileAttribute: Boolean): Option[Md5FileInfo] = {
-    def innerGenerateMd5Sum = {
-      val md5 = Md5Recurse.md5Sum(file.getAbsolutePath)
-      if (md5.isDefined) {
-        val md5FileInfo: Md5FileInfo = create(file, md5.get.md5, md5.get.isBinary)
-        val md5FileInfo2 = if (updateFileAttribute) Md5FileInfo.updateMd5FileAttribute(file, md5FileInfo, true) else md5FileInfo
-        Some(md5FileInfo2)
-      }
-      else None
+    val md5 = Md5Recurse.md5Sum(file.getAbsolutePath)
+    if (md5.isDefined) {
+      val md5FileInfo: Md5FileInfo = create(file, md5.get.md5, md5.get.isBinary)
+      val md5FileInfoUpdated = if (updateFileAttribute) Md5FileInfo.updateMd5FileAttribute(file, md5FileInfo) else md5FileInfo
+      Some(md5FileInfoUpdated)
     }
-
-    if (!updateFileAttribute) {
-      innerGenerateMd5Sum
-    } else {
-      // Lock the file so others cannot write file, while we read it to generate MD5 and then write fileAttribute
-      // We don't need the lock on linux, unless the filesystem is mounted NTFS I think. Its probably filesystem dependent not OS dependent.
-      val in = new FileInputStream(file);
-      try {
-        val lock = in.getChannel().lock(0L, Long.MaxValue, true)
-        try {
-          innerGenerateMd5Sum
-        } finally {
-          lock.release();
-        }
-      } finally {
-        in.close();
-      }
-    }
+    else None
   }
 
   //  def createAndGenerate(fileInfo: FileInfo) = {
@@ -163,10 +143,12 @@ object Md5FileInfo {
     fileSet
   }
 
-  def updateMd5FileAttribute(file: File, md5FileInfo: Md5FileInfo, allowUpdateFileModified: Boolean): Md5FileInfo = {
+  def updateMd5FileAttribute(file: File, md5FileInfo: Md5FileInfo): Md5FileInfo = {
     val MAX_WRITE_ATTEMPTS = 5
     val attrView: UserDefinedFileAttributeView = FileUtil.attrView(file)
     val oldAttr = FileUtil.getAttr(attrView, Md5FileInfo.ATTR_MD5RECURSE)
+
+    val allowUpdateFileModified = md5FileInfo.lastModifiedSec() == file.lastModified() / 1000
 
     // only update changes
     def doUpdate(inputMd5FileInfo: Md5FileInfo, i: Int): Md5FileInfo = {
@@ -177,18 +159,24 @@ object Md5FileInfo {
         }
       }
       val updated = inputMd5FileInfo.createUpdateTimestamp
-      if (updated.lastModified() != inputMd5FileInfo.lastModified() && i < MAX_WRITE_ATTEMPTS && allowUpdateFileModified)
+      if (updated.lastModifiedSec() != inputMd5FileInfo.lastModifiedSec() && i < MAX_WRITE_ATTEMPTS && allowUpdateFileModified)
         doUpdate(updated, i + 1)
       else
         inputMd5FileInfo
     }
 
-    val updatedMd5FileInfo = doUpdate(md5FileInfo, 0)
-    if (file.lastModified() / 1000 != updatedMd5FileInfo.lastModified() && allowUpdateFileModified) {
-      println("WARNING: Failed to set fileAttribute with same lastModified as file timestamp")
-      updatedMd5FileInfo.createUpdateTimestamp
-    } else {
-      updatedMd5FileInfo
+    // Lock the file so others cannot write file, while we read it to generate MD5 and then write fileAttribute
+    // We don't need the lock on linux, unless the filesystem is mounted NTFS I think. Its probably filesystem dependent not OS dependent.
+    FileUtil.doWithLockedFile(file) {
+      () => {
+        val updatedMd5FileInfo = doUpdate(md5FileInfo, 0)
+        if (file.lastModified() / 1000 != updatedMd5FileInfo.lastModifiedSec() && allowUpdateFileModified) {
+          println("WARNING: Failed to set fileAttribute with same lastModified as file timestamp")
+          updatedMd5FileInfo.createUpdateTimestamp
+        } else {
+          updatedMd5FileInfo
+        }
+      }
     }
   }
 }
@@ -203,7 +191,7 @@ class Md5FileInfo(fileInfo: FileInfoBasic, md5: String, isBinaryMd5: Boolean) {
 
   def size(): Long = fileInfo.getSize
 
-  def lastModified(): Long = fileInfo.getLastModifiedSec
+  def lastModifiedSec(): Long = fileInfo.getLastModifiedSec
 
   //  def file(): File = fileInfo.file
   def filePath(): String = fileInfo.getPath

@@ -1,6 +1,6 @@
 package Md5Recurse
 
-import java.io.File
+import java.io.{File, FileInputStream}
 import java.nio.ByteBuffer
 import java.nio.file.Files
 import java.nio.file.attribute.{BasicFileAttributes, UserDefinedFileAttributeView}
@@ -53,6 +53,22 @@ object FileUtil {
 
   def attrView(file: File): UserDefinedFileAttributeView = {
     Files.getFileAttributeView(file.toPath, classOf[UserDefinedFileAttributeView]);
+  }
+
+  def doWithLockedFile[T](file: File)(supplier: () => T): T = {
+    // Lock the file so others cannot write file, while we read it to generate MD5 and then write fileAttribute
+    // We don't need the lock on linux, unless the filesystem is mounted NTFS I think. Its probably filesystem dependent not OS dependent.
+    val in = new FileInputStream(file);
+    try {
+      val lock = in.getChannel().lock(0L, Long.MaxValue, true)
+      try {
+        supplier.apply()
+      } finally {
+        lock.release();
+      }
+    } finally {
+      in.close();
+    }
   }
 
   // In Linux: getfattr --name=user.md5recurse --only-values --absolute-names file

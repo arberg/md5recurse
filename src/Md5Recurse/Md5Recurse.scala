@@ -404,7 +404,7 @@ object Md5Recurse {
             // Old non-verified file
             if (config.verbose >= 2) println("Skipped " + f)
             // update file attribute in case we are switching from global file scheme to local, but don't allow updating timestamp, as actual file content may hove changed since we have not locked file
-            if (config.useFileAttributes) Md5FileInfo.updateMd5FileAttribute(f, recordedMd5Info, false)
+            if (config.useFileAttributes) Md5FileInfo.updateMd5FileAttribute(f, recordedMd5Info)
             md5s += recordedMd5Info // timestamp updated on windows NTFS if fileAttributes written
           }
         } else {
