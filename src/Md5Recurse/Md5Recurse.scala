@@ -503,12 +503,12 @@ object Md5Recurse {
 
     def updateFileSetAndWriteFiles(dir: File, md5s: List[Md5FileInfo], failures: List[Md5FileInfo], failureMsgs: List[String]) {
       // Sort to make text-comparison of files more useful
-      md5s.sortBy(_.fileName())
-      failures.sortBy(_.fileName())
-      if (Config.it.printMd5) printMd5Hashes(dir, md5s)
-      globalWriter.write(dir, md5s)
-      failureWriter.write(dir, failures, failureMsgs)
-      writeBothMd5Files(dir, md5s)
+      val sortedMd5s = md5s.sortBy(_.fileName())
+      val sortedFailures = failures.sortBy(_.fileName())
+      if (Config.it.printMd5) printMd5Hashes(dir, sortedMd5s)
+      globalWriter.write(dir, sortedMd5s)
+      failureWriter.write(dir, sortedFailures, failureMsgs)
+      writeBothMd5Files(dir, sortedMd5s)
     }
 
     def isDirDisabled(dir: File) = {
