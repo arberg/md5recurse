@@ -279,7 +279,7 @@ object Md5Recurse {
     if (md5s.size > 0) {
       // dirPath will be null if single file scan
       if (dirPath != null) {
-        println(">" + dirPath.getAbsolutePath);
+        println(">" + dirPath.getCanonicalPath);
       }
       for (md5 <- md5s) {
         println(md5.exportMd5Line);
@@ -488,7 +488,7 @@ object Md5Recurse {
       if (dirOrFile.exists) {
         if (dirOrFile.isDirectory()) {
           if (dirOrFile.listFiles == null) {
-            System.err.println("Unable to read dir, permission denied or io error: " + dirOrFile.getAbsolutePath)
+            System.err.println("Unable to read dir, permission denied or io error: " + dirOrFile.getCanonicalPath)
           } else if (!isDirDisabled(dirOrFile)) {
             val (md5s, failureMd5s, failureMessages) = verifyAndGenerateMd5ForDirectoryNonRecursive(dirOrFile, fileSet.getDir(dirOrFile.getAbsoluteFile))
             postScan(dirOrFile, md5s, failureMd5s, failureMessages)

@@ -36,15 +36,6 @@ object Md5FileInfo {
     else None
   }
 
-  //  def createAndGenerate(fileInfo: FileInfo) = {
-  //    new Md5FileInfo(fileInfo, Md5Tool.md5Sum(fileInfo.file().getAbsolutePath))
-  //  }
-  //  def createWithMd5(fileInfo: FileInfo, md5: String, isBinary: Boolean) = {
-  //    new Md5FileInfo(fileInfo, new Md5SumInfo("", md5, isBinary, fileInfo.file().getPath()))
-  //  }
-  //  def createAndGenerate(file: File): Md5FileInfo = {
-  //    createAndGenerate(FileInfo.create(file))
-  //  }
   def create(file: File, md5: String, isBinary: Boolean) = {
     new Md5FileInfo(FileInfoBasic.create(file), md5, isBinary)
   }
@@ -70,7 +61,7 @@ object Md5FileInfo {
       case timestampRegex(md5, b, lastMod, size) =>
         (md5, lastMod, size, b == "1")
       case _ => {
-        throw new ParseException(file.getAbsolutePath + ": File attribute content corrupt: '" + dataLine + " ' ")
+        throw new ParseException(file.getCanonicalPath + ": File attribute content corrupt: '" + dataLine + " ' ")
       }
     }
     new Md5FileInfo(FileInfoBasic.create(lastMod.toLong, size.toLong, file), md5, isBinary)
@@ -101,7 +92,7 @@ object Md5FileInfo {
   }
 
   private def getFileDir(file: File): String = {
-    file.getParentFile.getAbsolutePath
+    file.getParentFile.getCanonicalPath
   }
 
   def readMd5DataFile(md5dataFile: File): DirToFileMap[Md5FileInfo] = {
@@ -120,7 +111,7 @@ object Md5FileInfo {
           prefixDir = line.substring(1)
         } else if (line.startsWith(">")) {
           dirToFileMap.setDir(currentDir, fileMap)
-          currentDir = new File(prefixDir + line.substring(1)).getAbsolutePath
+          currentDir = new File(prefixDir + line.substring(1)).getCanonicalPath
           fileMap = dirToFileMap.getOrCreateDir(new File(currentDir))
         } else {
           try {
