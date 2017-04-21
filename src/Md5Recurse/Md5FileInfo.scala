@@ -75,6 +75,7 @@ object Md5FileInfo {
   def readMd5FileAttribute(file: File): Option[Md5FileInfo] = {
     val attrView: UserDefinedFileAttributeView = FileUtil.attrView(file)
     val dataLine: Option[String] = FileUtil.getAttr(attrView, ATTR_MD5RECURSE)
+    if (Config.it.logMd5ScansSkippedAndLocalAndAttributeReads) println("Reading fileAttribute " + file.getName + ": " + (if (dataLine.isDefined) "Found" else "Not available"))
     if (dataLine.isDefined) {
       if (doLog) println(file + ": Attr read: '" + dataLine.get + "'")
       Some(parseMd5FileAttribute(file, dataLine.get))
@@ -84,11 +85,10 @@ object Md5FileInfo {
     }
   }
 
-  def readDirFile(md5dataFilename: String): Map[String, Md5FileInfo] = {
+  def readDirFile(md5dataFilename: String): Option[Map[String, Md5FileInfo]] = {
     val md5dataFile = new File(md5dataFilename)
     val fileSet = readMd5DataFile(md5dataFile)
-    val o = fileSet.getDir(md5dataFile.getParentFile)
-    if (o.isEmpty) new immutable.HashMap[String, Md5FileInfo]() else o.get
+    fileSet.getDir(md5dataFile.getParentFile)
   }
 
   private def getFileDir(file: File): String = {

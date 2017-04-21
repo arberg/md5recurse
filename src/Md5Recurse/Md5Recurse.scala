@@ -41,7 +41,9 @@ case class Config(
                    logMd5Scans: Boolean = false,
                    logPerformance: Boolean = false,
                    logMd5ScansAndSkipped: Boolean = false,
+                   logMd5ScansSkippedAndLocalAndAttributeReads: Boolean = false,
                    logMd5ScansSkippedAndPrintDetails: Boolean = false,
+                   logPostFix: String = "",
                    //  verboseMd5Sum: Boolean = false,
                    quiet: Boolean = false,
                    doVerify: Boolean = false,
@@ -145,7 +147,7 @@ class Md5OptionParser extends scopt.OptionParser[Config]("Md5Recurse") {
   } text "Enable writing files Pr Directory usable by md5sum, files will not be read by this program"
 
   opt[String]('p', "prefix") valueName "<local-file-prefix>" action { (x, c) =>
-    c.copy(md5FilePrefix = x)
+    c.copy(md5FilePrefix = x, logPostFix = s" ($x)")
   } text "prefix for global and local dir files .md5 (for md5sum program) and .md5data (data file for this program)"
 
   opt[Unit]("deletemd5") action { (_, c) =>
@@ -168,7 +170,14 @@ class Md5OptionParser extends scopt.OptionParser[Config]("Md5Recurse") {
     c.copy(printMd5 = true)
   } text "print md5 hashes to stdout"
 
-  def verboseCopy(c: Config, level: Int) = c.copy(logMd5Scans = level >= 1, logPerformance = level >= 2, logMd5ScansAndSkipped = level >= 3, logMd5ScansSkippedAndPrintDetails = level >= 4)
+  def verboseCopy(c: Config, level: Int) =
+    c.copy(
+      logMd5Scans = level >= 1,
+      logPerformance = level >= 2,
+      logMd5ScansAndSkipped = level >= 3,
+      logMd5ScansSkippedAndLocalAndAttributeReads = level >= 4,
+      logMd5ScansSkippedAndPrintDetails = level >= 5
+    )
 
   opt[Unit]('v', "verbose") action { (_, c) =>
     verboseCopy(c, 1)
@@ -239,7 +248,15 @@ object Md5Recurse {
         val outLines: Seq[String] = outObjects.zipWithIndex.map { case (o, i: Int) => (if (i == 0 && writeBOM) "\uFEFF" else "") + proc(o) }
         val path = Path.fromString(file.getPath)
         // Don't sort the read lines, because if user manually edited file it does not hurt rewriting file. If user didn't edit file, it will have identical sorting
-        if (!path.exists || outLines != path.lines().toList) {
+        def equals[T] (list1:T, list2:T) = {
+          val equals = list1 == list2
+          if (equals) {
+            if (Config.it.logMd5ScansAndSkipped) println("Identical local file " + file)
+          }
+          equals
+        }
+        if (!path.exists || !equals(outLines, path.lines().toList)) {
+          if (Config.it.logMd5ScansAndSkipped) println("Updating local file " + file)
           try {
             path.writeStrings(strings = outLines, separator = "\n")
           } catch {
@@ -326,17 +343,36 @@ object Md5Recurse {
     if (file != null) file else file2
   }
 
+  def getFromDirSet(dirSet: Option[Map[String, Md5FileInfo]], file: File): Option[Md5FileInfo] = {
+    if (dirSet.isDefined) {
+      dirSet.get.get(file.getName)
+    } else None
+  }
+
+  def isMatchingFileLastModified(fileInfo: Option[Md5FileInfo], lastModified: Long) = {
+    fileInfo.isDefined && fileInfo.get.lastModified() == lastModified
+  }
+
+  def mostRecent(val1: Option[Md5FileInfo], val2: Option[Md5FileInfo]): Option[Md5FileInfo] = {
+    if (!val1.isDefined)
+      val2
+    else if (!val2.isDefined)
+      val1
+    else if (val1.get.lastModified() < val2.get.lastModified())
+      val2
+    else
+      val1
+  }
   def verifyAndGenerateMd5NonRecursive(dir: File, files: List[File], globalDirSet: Option[Map[String, Md5FileInfo]]): (List[Md5FileInfo], List[Md5FileInfo], List[String]) = {
     val config = Config.it
     //    if (config.verbose >= 2) print("Dir: " + dir)
-    // Read md5data files in dir
-    val dirSet =
-    if (Config.it.readMd5DataPrDirectory && (globalDirSet.isEmpty || globalDirSet.get.isEmpty)) {
-      Md5FileInfo.readDirFile(dir.getPath + "/" + Config.it.md5dataName())
-    } else if (globalDirSet.isDefined)
-      globalDirSet.get
-    else
-      new immutable.HashMap[String, Md5FileInfo]()
+    // Read md5data files in dir. Lazy makes little difference, because we always read update local files and diff with new version on write
+    lazy val localDirSet =
+    if (Config.it.readMd5DataPrDirectory) {
+      val md5dataFilename = dir.getPath + "/" + Config.it.md5dataName()
+      if (Config.it.logMd5ScansSkippedAndLocalAndAttributeReads) println("Reading local md5data: " + md5dataFilename)
+      Md5FileInfo.readDirFile(md5dataFilename)
+    } else None
     val failureMsgs = MutableList[String]()
     val failures = MutableList[Md5FileInfo]()
     val md5s = MutableList[Md5FileInfo]()
@@ -361,19 +397,38 @@ object Md5Recurse {
         }
       }
 
-      def getMd5FileInfoPreferFromAttribute(): Option[Md5FileInfo] = {
-        var m: Option[Md5FileInfo] = None
+      def readAttribute(file: File) = {
         try {
-          if (config.useFileAttributes) m = Md5FileInfo.readMd5FileAttribute(f)
+          if (config.useFileAttributes) Md5FileInfo.readMd5FileAttribute(f) else None
         } catch {
           case e: ParseException => failureMsgs += e.getMessage
+            None
         }
-        if (m.isDefined) m else dirSet.get(f.getName)
+      }
+
+      def getNewestMd5FileInfo(): Option[Md5FileInfo] = {
+        val lastModified = f.lastModified()
+        val fromGlobal = getFromDirSet(globalDirSet, f)
+        if (isMatchingFileLastModified(fromGlobal, lastModified)) {
+          fromGlobal
+        } else {
+          val fromLocal = getFromDirSet(localDirSet, f)
+          if (isMatchingFileLastModified(fromLocal, lastModified)) {
+            fromLocal
+          } else {
+            val fromAttribute = readAttribute(f)
+            if (isMatchingFileLastModified(fromAttribute, lastModified)) {
+              fromAttribute
+            } else {
+              mostRecent(fromLocal, mostRecent(fromGlobal, fromAttribute))
+            }
+          }
+        }
       }
 
       fileCount += 1
       val currentFileInfo = FileInfoBasic.create(f)
-      val recordedMd5InfoOption: Option[Md5FileInfo] = getMd5FileInfoPreferFromAttribute()
+      val recordedMd5InfoOption: Option[Md5FileInfo] = getNewestMd5FileInfo()
       if (recordedMd5InfoOption.isDefined) {
         if (config.logMd5ScansSkippedAndPrintDetails)
           println(currentFileInfo.getPath())
@@ -599,7 +654,7 @@ object Md5Recurse {
               }
             }
           }
-          Timer("Md5Recurse", config.logPerformance) {
+          Timer("Md5Recurse" + config.md5FilePrefix, config.logPerformance) {
             () => execute(config)
           }
         }

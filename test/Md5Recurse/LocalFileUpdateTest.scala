@@ -71,22 +71,24 @@ class LocalFileUpdateTest extends FlatSpec with TestConfig with TestData {
       assertFilesContainExactly(MD5_DUMMY1a, 1, localMd5FilePath)
 
       // Change the test-file
-      filepath1.write("New Content")
+      filepath1.write(NEW_CONTENT_STRING)
       runMd5Recurse()
       // We expect file to have changed content
-      localMd5FilePath.lines().exists(_.contains("f45cc89d6028945712f568082080e7c5")) should be(true)
+      localMd5FilePath.lines().foreach(println(_))
+      assertFilesContainExactlyOnce(MD5_NEW_CONTENT, localMd5FilePath)
 
       // Run again, but this time we expect that the local files are up2date so they should not be rewritten
-      Thread.sleep(20)
+      Thread.sleep(1000)
       // OS may have minimimum time measurement of 16 ms, so sleep a bit
-      val lastModified = localMd5FilePath.lastModified
+      val lastModifiedLocalMd5 = localMd5FilePath.lastModified
       runMd5Recurse()
-      assert(localMd5FilePath.lastModified === lastModified, s"file $localMd5FileExtension should not have been updated, because content is the same")
+      assert(localMd5FilePath.lastModified === lastModifiedLocalMd5, s"file $localMd5FileExtension should not have been updated, because content is the same")
 
       // Run again, file still up2date, but this time with no attributes written
       deleteMd5FileAttributes(testDirPath)
       runMd5Recurse()
-      localMd5FilePath.lastModified should be(lastModified)
+//      localMd5FilePath.lines().foreach(println(_))
+      localMd5FilePath.lastModified should be(lastModifiedLocalMd5)
 
       // Modify the local data file, so lines are not correctly sorted, and run again. File should still be up2date
       val fileLinesReversed = localMd5FilePath.lines().toList.reverse
