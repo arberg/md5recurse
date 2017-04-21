@@ -1,5 +1,7 @@
 package Md5Recurse
 
+import java.io.File
+
 import org.scalatest._
 
 import scalax.file.Path
@@ -74,6 +76,85 @@ class LocalFileUpdateTest extends FlatSpec with TestConfig {
     testLocalFileWrittenAndNotUpdated(MD5SUM_EXT, Array("--enableLocalMd5Sum", "--print"))
   }
 
+  "With disabled fileAttributes" should "not read or write fileAttributes" in {
+    val testDirPath = copyTestResources
+    val filepath = testDirPath / "dummy1.log"
+    filepath.exists should be(true)
+    val localMd5FilePath = testDirPath / Path(".md5data")
+    localMd5FilePath.exists should be(false)
+
+    deleteMd5FileAttributes(testDirPath)
+    // Should fail with info 'Error: Please choose storage to read from (--disableReadGlobalMd5 requires --enableLocalMd5Data)'
+    //Md5Recurse.main(Array("--disable-file-attributes", testDirPath.path))
+    val (_, errorNoStorage) = md5RecurseGetOutputAndError(Array("--disable-file-attributes", filepath.path))
+    errorNoStorage should include("Error: Please choose storage to read from (--disableReadGlobalMd5 requires --enableLocalMd5Data)")
+
+    // todo don't write filename in fileattributes
+    setMd5FileAttributes(filepath, "dddddddddddddddddddddddddddddddd 1 1492717460 200 dummy1.log")
+    Md5Recurse.main(Array("--disable-file-attributes", "--enableLocalMd5Data", filepath.path))
+    validateAttr(filepath, "dddddddddddddddddddddddddddddddd") // File attribute should still contain our dummy value
+    localMd5FilePath.exists should be(true)
+    //localMd5FilePath.lines().foreach(f => println(f))
+    val md5DataLine = localMd5FilePath.lines().head
+    md5DataLine should include("4dfb6df790f3b8b2bf84145c6fb32bac") // Local file should contain actual computed value
+  }
+
+//  "With enabled fileAttributes" should "read fileAttribute and the attribute should trump local file md5data" in {
+//    val testDirPath = copyTestResources
+//    val filepath = testDirPath / "dummy1.log"
+//    filepath.exists should be(true)
+//
+//    val localMd5FilePath = testDirPath / Path(".md5data")
+//    localMd5FilePath.exists should be(false)
+//    val globalMd5FilePath = testDirPath / Path("_global.md5data")
+//    globalMd5FilePath.exists should be(false)
+//
+//    deleteMd5FileAttributes(testDirPath)
+//    // bug local file and global file date is incorrect when attribute is updated
+//    val md5Params = Array("-g", testDirPath.path, "--enableLocalMd5Data", filepath.path)
+//    println(testDirPath.path)
+//    println(1)
+//    Md5Recurse.main(md5Params)
+//    localMd5FilePath.lines().foreach(l => println(l))
+//    globalMd5FilePath.lines().foreach(l => println(l))
+//    localMd5FilePath.lines().head should include("4dfb6df790f3b8b2bf84145c6fb32bac") // Local file should contain actual computed value
+//    validateAttr(filepath, "4dfb6df790f3b8b2bf84145c6fb32bac") // File attribute should still contain our dummy value
+//    //    validateAttr(filepath, md5DataLine) // File attribute should still contain our dummy value
+//    Thread.sleep(100)
+//  }
+
+  // Test fails because of bug I havn't solved yet
+  "With enabled fileAttributes" should "write fileAttribute with correct timestamp so we don't think file modified on next scan" in {
+    val testDirPath = copyTestResources
+    val filepath = testDirPath / "dummy1.log"
+    filepath.exists should be(true)
+
+    def repeatTest(params: Array[String]) = {
+      def lastMod() = FileInfoBasic.create(new File(filepath.path)).getLastModifiedSec()
+
+      println()
+      // If I don't copyTestResources then below won't update file modified timestamp on each run.
+      // Ah if just once we manage to run two consequtive scans within same second they get same lastModified and we will stop rescanning, because fileAttribute becomes correct
+      copyTestResources
+      Md5Recurse.main(params)
+      val firstLastModified = lastMod()
+      for (i <- 1 to 4) {
+        Thread.sleep(1000)
+        Md5Recurse.main(params)
+        val currentLastMod = lastMod()
+        if (currentLastMod != firstLastModified) {
+          println("ERROR: File changed")
+        }
+        println(getAttr(filepath).get)
+        assert(currentLastMod === firstLastModified)
+      }
+    }
+
+    repeatTest(Array("-V", "1", filepath.path))
+    repeatTest(Array("-g", testDirPath.path, filepath.path))
+    repeatTest(Array("-V", "1", "--enableLocalMd5Data", filepath.path))
+  }
+
   "Local file" should "honor specified encoding" in {
     def testLocalFileWrittenInEncoding(localMd5FileExtension: String, md5ToolParam: Array[String], expectForcedUTF8: Boolean) {
       val testDirPath = copyTestResources / "encoding"
@@ -120,7 +201,7 @@ class LocalFileUpdateTest extends FlatSpec with TestConfig {
     localMd5FilePath.exists should be(false)
 
     deleteMd5FileAttributes(testDirPath)
-//    Md5Recurse.main(Array("--enableLocalMd5Sum", "--enableLocalMd5Data", "-e", "ISO-8859-1", "--globaldir", TEST_EXECUTION_GLOBAL_DIR, testDirPath.path))
+    //    Md5Recurse.main(Array("--enableLocalMd5Sum", "--enableLocalMd5Data", "-e", "ISO-8859-1", "--globaldir", TEST_EXECUTION_GLOBAL_DIR, testDirPath.path))
     Md5Recurse.main(Array("--enableLocalMd5Sum", "--enableLocalMd5Data", "-e", "UTF-8-BOM", "--globaldir", TEST_EXECUTION_GLOBAL_DIR, testDirPath.path))
     withClue(localMd5FilePath) {
       localMd5FilePath.exists should be(true)
@@ -141,13 +222,13 @@ class LocalFileUpdateTest extends FlatSpec with TestConfig {
 
   }
 
-//  Outcommented because they kill JVM
-//  "help" should "print help" in {
-//    Md5Recurse.main(Array("--help"))
-//  }
-//
-//  "version" should "print version" in {
-//    Md5Recurse.main(Array("--version"))
-//  }
+  //  Outcommented because they kill JVM
+  //  "help" should "print help" in {
+  //    Md5Recurse.main(Array("--help"))
+  //  }
+  //
+  //  "version" should "print version" in {
+  //    Md5Recurse.main(Array("--version"))
+  //  }
 
 }

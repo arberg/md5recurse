@@ -3,7 +3,7 @@ package Md5Recurse
 import java.io.File
 import java.nio.ByteBuffer
 import java.nio.file.Files
-import java.nio.file.attribute.UserDefinedFileAttributeView
+import java.nio.file.attribute.{BasicFileAttributes, UserDefinedFileAttributeView}
 
 import scala.collection.{Iterable, Iterator}
 
@@ -42,6 +42,13 @@ object FileUtil {
       def iterator = if (file.isDirectory) file.listFiles.iterator else Iterator.empty
     }
     Seq(file) ++: children.flatMap(walkTree(_))
+  }
+
+  def logFileTimestamps(file: File) {
+    val attr = Files.readAttributes(file.toPath, classOf[BasicFileAttributes])
+    System.out.println("creationTime: " + attr.creationTime)
+    System.out.println("lastAccessTime: " + attr.lastAccessTime)
+    System.out.println("lastModifiedTime: " + attr.lastModifiedTime)
   }
 
   def attrView(file: File): UserDefinedFileAttributeView = {

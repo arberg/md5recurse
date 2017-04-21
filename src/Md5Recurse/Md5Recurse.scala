@@ -350,7 +350,7 @@ object Md5Recurse {
     // loop files (exclude *.md5data and *.md5)
     for (f <- files if f.isFile() if !f.getName.endsWith(Config.it.md5DataExtension()) if !f.getName.endsWith(Config.it.md5SumExtension()) if !FileUtil.isSymLink(f)) {
       def generateMd5(debugInfo: String) = {
-        val fInfoMd5Option = Md5FileInfo.createAndGenerate(f)
+        val fInfoMd5Option = Md5FileInfo.readFileGenerateMd5Sum(f, config.useFileAttributes)
         if (!fInfoMd5Option.isDefined) {
           failureMsgs += "Error reading file " + f
         } else {
@@ -384,7 +384,7 @@ object Md5Recurse {
         if (currentFileInfo.getLastModifiedSec() == recordedFileInfo.getLastModifiedSec()) {
           //  still check if filesize change, to generate new md5
           if (Config.it.doVerify) {
-            val fInfoMd5Option = Md5FileInfo.createAndGenerate(f)
+            val fInfoMd5Option = Md5FileInfo.readFileGenerateMd5Sum(f, config.useFileAttributes)
             if (!fInfoMd5Option.isDefined) {
               failureMsgs += "Error reading file " + currentFileInfo
             } else {
@@ -403,8 +403,9 @@ object Md5Recurse {
           } else {
             // Old non-verified file
             if (config.verbose >= 2) println("Skipped " + f)
-            recordedMd5Info.updateMd5FileAttribute(f) // update file attribute in case we are switching from global file scheme to local
-            md5s += recordedMd5Info
+            // update file attribute in case we are switching from global file scheme to local, but don't allow updating timestamp, as actual file content may hove changed since we have not locked file
+            if (config.useFileAttributes) Md5FileInfo.updateMd5FileAttribute(f, recordedMd5Info, false)
+            md5s += recordedMd5Info // timestamp updated on windows NTFS if fileAttributes written
           }
         } else {
           // Old modified file

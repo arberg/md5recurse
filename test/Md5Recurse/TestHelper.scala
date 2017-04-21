@@ -14,6 +14,10 @@ trait TestHelper extends FlatSpec with Matchers {
     validateAttr(new File(path.path), expectedMd5)
   }
 
+  def getAttr(path: Path): Option[String] = {
+    FileUtil.getAttr(FileUtil.attrView(new File(path.path)), Md5FileInfo.ATTR_MD5RECURSE)
+  }
+
   def validateAttr(file: File, expectedMd5: String): Unit = {
     val newAttribute = FileUtil.getAttr(FileUtil.attrView(file), Md5FileInfo.ATTR_MD5RECURSE)
     newAttribute.get should not be (None)
@@ -29,12 +33,24 @@ trait TestHelper extends FlatSpec with Matchers {
   }
 
   /**
-    * Deletes fileattribute containing md5-hash for file, then scans the file with MD5TOOL and verifies the new attribute equals expectedMd5
+    * Sets  md5-hash file attribute for all files in path
     */
-  def md5RecurseFile(filename: String, expectedMd5: Option[String], extraParams : Array[String] = Array()) {
+  def setMd5FileAttributes(path: Path, attributeValue: String) {
+    def doIt(p: Path) = FileUtil.setAttr(FileUtil.attrView(new File(p.path)), Md5FileInfo.ATTR_MD5RECURSE, attributeValue)
+
+    if (path.isDirectory)
+      path.children().foreach(p => doIt(p))
+    else
+      doIt(path)
+  }
+
+  /**
+    * Deletes fileAttribute containing md5-hash for file, then scans the file with MD5TOOL and verifies the new attribute equals expectedMd5
+    */
+  def md5RecurseFile(filename: String, expectedMd5: Option[String], extraParams: Array[String] = Array()) {
     val file: File = new File(filename)
     file.exists() should be(true)
-    val md5FileInfo = Md5FileInfo.createAndGenerate(file).get
+    val md5FileInfo = Md5FileInfo.readFileGenerateMd5Sum(file, true).get
     if (expectedMd5.isDefined)
       md5FileInfo.md5String should include(expectedMd5.get)
 
@@ -46,18 +62,34 @@ trait TestHelper extends FlatSpec with Matchers {
     validateAttr(file, md5FileInfo.md5String)
   }
 
-  def md5RecurseGetOutput(params : Array[String], doEcho : Boolean = false) : String = {
-    val stream = new java.io.ByteArrayOutputStream()
-    Console.withOut(stream) {
+  def md5RecurseGetOutput(params: Array[String], doEcho: Boolean = false): String = {
+    val streamOut = new java.io.ByteArrayOutputStream()
+    Console.withOut(streamOut) {
       //all printlns in this block will be redirected
       Md5Recurse.main(params)
     }
-    val output = stream.toString
+    val output = streamOut.toString
     if (doEcho) println(output)
     output
   }
 
-  def md5Recurse(params : Array[String]) {
+  def md5RecurseGetOutputAndError(params: Array[String], doEcho: Boolean = false): (String, String) = {
+    val streamErr = new java.io.ByteArrayOutputStream()
+    val streamOut = new java.io.ByteArrayOutputStream()
+    Console.withErr(streamErr) {
+      Console.withOut(streamOut) {
+        //all printlns in this block will be redirected
+        Md5Recurse.main(params)
+      }
+    }
+    val output = streamOut.toString
+    val error = streamErr.toString
+    if (doEcho) println(output)
+    if (doEcho) println(error)
+    (output, error)
+  }
+
+  def md5Recurse(params: Array[String]) {
     Md5Recurse.main(params)
   }
 }

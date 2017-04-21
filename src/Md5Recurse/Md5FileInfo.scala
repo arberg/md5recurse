@@ -1,10 +1,8 @@
 package Md5Recurse
 
-import java.io.{File, FileNotFoundException}
+import java.io.{File, FileInputStream, FileNotFoundException}
 import java.nio.charset.MalformedInputException
 import java.nio.file.attribute.UserDefinedFileAttributeView
-
-import java.io.File
 
 import scala.collection.{Map, immutable}
 import scala.io.Source
@@ -28,14 +26,34 @@ object Md5FileInfo {
   val ATTR_MD5RECURSE = "md5recurse" // java or filesystem prefixes 'user.'
 
   // read file and generate md5sum
-  def createAndGenerate(file: File): Option[Md5FileInfo] = {
-    val md5 = Md5Recurse.md5Sum(file.getAbsolutePath)
-    if (md5.isDefined) {
-      val md5FileInfo: Md5FileInfo = create(file, md5.get.md5, md5.get.isBinary)
-      md5FileInfo.updateMd5FileAttribute(file)
-      Some(md5FileInfo)
+  def readFileGenerateMd5Sum(file: File, updateFileAttribute: Boolean): Option[Md5FileInfo] = {
+    def innerGenerateMd5Sum = {
+      val md5 = Md5Recurse.md5Sum(file.getAbsolutePath)
+      if (md5.isDefined) {
+        val md5FileInfo: Md5FileInfo = create(file, md5.get.md5, md5.get.isBinary)
+        val md5FileInfo2 = if (updateFileAttribute) Md5FileInfo.updateMd5FileAttribute(file, md5FileInfo, true) else md5FileInfo
+        Some(md5FileInfo2)
+      }
+      else None
     }
-    else None
+
+    if (!updateFileAttribute) {
+      innerGenerateMd5Sum
+    } else {
+      // Lock the file so others cannot write file, while we read it to generate MD5 and then write fileAttribute
+      // We don't need the lock on linux, unless the filesystem is mounted NTFS I think. Its probably filesystem dependent not OS dependent.
+      val in = new FileInputStream(file);
+      try {
+        val lock = in.getChannel().lock(0L, Long.MaxValue, true)
+        try {
+          innerGenerateMd5Sum
+        } finally {
+          lock.release();
+        }
+      } finally {
+        in.close();
+      }
+    }
   }
 
   //  def createAndGenerate(fileInfo: FileInfo) = {
@@ -54,7 +72,7 @@ object Md5FileInfo {
   def parseMd5DataLine(dir: String, dataLine: String) = {
     // lastMod will be negative if file dated before 1970.
     val timestampRegex =
-    """([0-9a-f]+)\s([01])\s([-]?\d+)\s(\d+)\s(.*)""".r
+      """([0-9a-f]+)\s([01])\s([-]?\d+)\s(\d+)\s(.*)""".r
     val (md5, lastMod, size, isBinary, f) = dataLine match {
       case timestampRegex(md5, b, lastMod, size, f) =>
         (md5, lastMod, size, b == "1", f)
@@ -67,7 +85,7 @@ object Md5FileInfo {
   def parseMd5FileAttribute(file: File, dataLine: String) = {
     // lastMod will be negative if file dated before 1970.
     val timestampRegex =
-    """([0-9a-f]+)\s([01])\s([-]?\d+)\s(\d+)""".r
+      """([0-9a-f]+)\s([01])\s([-]?\d+)\s(\d+)""".r
     val (md5, lastMod, size, isBinary) = dataLine match {
       case timestampRegex(md5, b, lastMod, size) =>
         (md5, lastMod, size, b == "1")
@@ -144,20 +162,38 @@ object Md5FileInfo {
     fileSet.setDoneBuilding;
     fileSet
   }
+
+  def updateMd5FileAttribute(file: File, md5FileInfo: Md5FileInfo, allowUpdateFileModified: Boolean): Md5FileInfo = {
+    val MAX_WRITE_ATTEMPTS = 5
+    val attrView: UserDefinedFileAttributeView = FileUtil.attrView(file)
+    val oldAttr = FileUtil.getAttr(attrView, Md5FileInfo.ATTR_MD5RECURSE)
+
+    // only update changes
+    def doUpdate(inputMd5FileInfo: Md5FileInfo, i: Int): Md5FileInfo = {
+      val newDataLine = inputMd5FileInfo.exportAttrLine
+      if (!oldAttr.isDefined || oldAttr.get != newDataLine) {
+        if (FileUtil.setAttr(attrView, Md5FileInfo.ATTR_MD5RECURSE, newDataLine)) {
+          if (Md5FileInfo.doLog) println(file + ": Attr written: '" + newDataLine + "'" + " - New lastModified " + file.lastModified())
+        }
+      }
+      val updated = inputMd5FileInfo.createUpdateTimestamp
+      if (updated.lastModified() != inputMd5FileInfo.lastModified() && i < MAX_WRITE_ATTEMPTS && allowUpdateFileModified)
+        doUpdate(updated, i + 1)
+      else
+        inputMd5FileInfo
+    }
+
+    val updatedMd5FileInfo = doUpdate(md5FileInfo, 0)
+    if (file.lastModified() / 1000 != updatedMd5FileInfo.lastModified() && allowUpdateFileModified) {
+      println("WARNING: Failed to set fileAttribute with same lastModified as file timestamp")
+      updatedMd5FileInfo.createUpdateTimestamp
+    } else {
+      updatedMd5FileInfo
+    }
+  }
 }
 
 class Md5FileInfo(fileInfo: FileInfoBasic, md5: String, isBinaryMd5: Boolean) {
-  def updateMd5FileAttribute(file: File) {
-    val newDataLine = exportAttrLine
-    val attrView: UserDefinedFileAttributeView = FileUtil.attrView(file)
-    val oldAttr = FileUtil.getAttr(attrView, Md5FileInfo.ATTR_MD5RECURSE)
-    // only update changes
-    if (!oldAttr.isDefined || oldAttr.get != newDataLine) {
-      if (FileUtil.setAttr(attrView, Md5FileInfo.ATTR_MD5RECURSE, newDataLine)) {
-        if (Md5FileInfo.doLog) println(file + ": Attr written: '" + newDataLine + "'")
-      }
-    }
-  }
 
   override def toString = exportDataLineFullPath
 
@@ -170,7 +206,7 @@ class Md5FileInfo(fileInfo: FileInfoBasic, md5: String, isBinaryMd5: Boolean) {
   def lastModified(): Long = fileInfo.getLastModifiedSec
 
   //  def file(): File = fileInfo.file
-  def filePath() = fileInfo.getPath
+  def filePath(): String = fileInfo.getPath
 
   def getDirectoryPath(): String = fileInfo.getDirectoryPath
 
@@ -183,4 +219,6 @@ class Md5FileInfo(fileInfo: FileInfoBasic, md5: String, isBinaryMd5: Boolean) {
   def exportDataLineFullPath = md5 + " " + (if (isBinaryMd5) "1" else "0") + " " + fileInfo.exportLineFullPath
 
   def exportMd5Line = md5 + " " + (if (isBinaryMd5) "*" else " ") + fileInfo.getName
+
+  def createUpdateTimestamp = new Md5FileInfo(fileInfo.createUpdateLastModified(), md5, isBinaryMd5)
 }

@@ -17,6 +17,9 @@ class FileInfoBasic(lastModifiedSec: Long, size: Long, dirPathName: String, file
   def exportLineFullPath = exportData + " " + getPath
   def exportLineFileName = exportData + " " + filename
   override def toString: String = exportLineFullPath
+  def createUpdateLastModified() = {
+    new FileInfoBasic(new File(getPath()).lastModified() / 1000, size, dirPathName, filename)
+  }
 }
 
 object FileInfoBasic {

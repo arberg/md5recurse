@@ -54,6 +54,22 @@ class Md5RecurseTest extends FlatSpec with TestConfig {
   "Md5Recurse scan single file without dir" should "not crash" in {
     md5RecurseFile("test-res/files/dummy1.log", None)
   }
+// Test fails because of bug I havn't solved yet
+  "Md5Recurse scan single file without dir" should "global file should not get multiple entries" in {
+    val testDirPath = copyTestResources
+    val filepath = testDirPath / "dummy1.log"
+    val globalMd5FilePath = testDirPath / Path("_global.md5data")
+    globalMd5FilePath.exists should be(false)
+
+    val md5Params = Array("-g", testDirPath.path, "--enableLocalMd5Data", filepath.path)
+    Md5Recurse.main(md5Params)
+    globalMd5FilePath.lines().foreach(l => println(l))
+    globalMd5FilePath.lines().filter(l => l.contains("4dfb6df790f3b8b2bf84145c6fb32bac")).size should be (1)
+
+    Md5Recurse.main(md5Params)
+    globalMd5FilePath.lines().foreach(l => println(l))
+    globalMd5FilePath.lines().filter(l => l.contains("4dfb6df790f3b8b2bf84145c6fb32bac")).size should be (1)
+  }
 
   "Md5Recurse scan with --globaldir" should "not fail" in {
     val filename: String = SRC_TEST_RES_DIR + "/dummy1.log"
