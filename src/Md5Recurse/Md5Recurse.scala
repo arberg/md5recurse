@@ -37,7 +37,11 @@ case class Config(
                    // 0 none
                    // 1 files read with md5s
                    // 2 all files (debug)
-                   verbose: Integer = 0,
+                   //                   verbose: Integer = 0,
+                   logMd5Scans: Boolean = false,
+                   logPerformance: Boolean = false,
+                   logMd5ScansAndSkipped: Boolean = false,
+                   logMd5ScansSkippedAndPrintDetails: Boolean = false,
                    //  verboseMd5Sum: Boolean = false,
                    quiet: Boolean = false,
                    doVerify: Boolean = false,
@@ -72,15 +76,15 @@ case class Config(
 
   def md5dataGlobalName() = md5FilePrefix + md5DataGlobalFileName;
 
-  def md5dataGlobalFilePath() = md5dataGlobalFolder.get.getCanonicalPath + "/" + md5dataGlobalName();
+  def md5dataGlobalFilePath() = md5dataGlobalFolder.get.getAbsolutePath + "/" + md5dataGlobalName();
 
-  def tmpMd5dataGlobalFilePath() = md5dataGlobalFolder.get.getCanonicalPath + "/temp_" + md5dataGlobalName();
+  def tmpMd5dataGlobalFilePath() = md5dataGlobalFolder.get.getAbsolutePath + "/temp_" + md5dataGlobalName();
 
-  def failureFile() = new File(md5dataGlobalFolder.get.getCanonicalPath + "/" + Sys.currentDateString + (if (md5FilePrefix.isEmpty()) "" else "_") + md5FilePrefix + Config.it.failedVerificationFilePostfix);
+  def failureFile() = new File(md5dataGlobalFolder.get.getAbsolutePath + "/" + Sys.currentDateString + (if (md5FilePrefix.isEmpty()) "" else "_") + md5FilePrefix + Config.it.failedVerificationFilePostfix);
 
-  def failureLogFile() = new File(md5dataGlobalFolder.get.getCanonicalPath + "/" + Sys.currentDateString + (if (md5FilePrefix.isEmpty()) "" else "_") + md5FilePrefix + Config.it.failedVerificationLogFilePostfix);
+  def failureLogFile() = new File(md5dataGlobalFolder.get.getAbsolutePath + "/" + Sys.currentDateString + (if (md5FilePrefix.isEmpty()) "" else "_") + md5FilePrefix + Config.it.failedVerificationLogFilePostfix);
 
-  def errorFile() = new File(md5dataGlobalFolder.get.getCanonicalPath + "/" + Sys.currentDateString + md5FilePrefix + Config.it.errorsFilePostfix);
+  def errorFile() = new File(md5dataGlobalFolder.get.getAbsolutePath + "/" + Sys.currentDateString + md5FilePrefix + Config.it.errorsFilePostfix);
 }
 
 // https://github.com/scopt/scopt
@@ -95,7 +99,9 @@ class Md5OptionParser extends scopt.OptionParser[Config]("Md5Recurse") {
   note("Secret info and fair warning: All directories containing a file by the name '.disable_md5' will be skipped (recursively)".wordWrap(TEXT_WRAP + TEXT_INDENT) + "\n")
 
   arg[File]("<dir>...") minOccurs (1) unbounded() action { (x, c) =>
-    c.copy(srcDirs = c.srcDirs :+ x)
+    // Use getCanonicalPath because on Windows filenames are not case sensitive, but its a lot slower so only use it for inputs
+    // We convert paths as early as possible so we don't have to convert them every step of the way
+    c.copy(srcDirs = c.srcDirs :+ x.getCanonicalFile)
   } text "dirs to execute recursive md5-check on\n"
 
   opt[Unit]("force") action { (_, c) =>
@@ -162,12 +168,14 @@ class Md5OptionParser extends scopt.OptionParser[Config]("Md5Recurse") {
     c.copy(printMd5 = true)
   } text "print md5 hashes to stdout"
 
+  def verboseCopy(c: Config, level: Int) = c.copy(logMd5Scans = level >= 1, logPerformance = level >= 2, logMd5ScansAndSkipped = level >= 3, logMd5ScansSkippedAndPrintDetails = level >= 4)
+
   opt[Unit]('v', "verbose") action { (_, c) =>
-    c.copy(verbose = 1)
+    verboseCopy(c, 1)
   } text "verbose level 1"
 
   opt[Int]('V', "verboselevel") valueName "<level>" action { (x, c) =>
-    c.copy(verbose = x)
+    verboseCopy(c, x)
   } text "set verbose level 0: none (default), 1: print files being read for md5sum, 2: print all files, 3: even more".wordWrap(TEXT_WRAP, TEXT_INDENT)
 
   opt[Unit]('q', "quiet") action { (_, c) =>
@@ -279,7 +287,7 @@ object Md5Recurse {
     if (md5s.size > 0) {
       // dirPath will be null if single file scan
       if (dirPath != null) {
-        println(">" + dirPath.getCanonicalPath);
+        println(">" + md5s(0).getDirectoryPath());
       }
       for (md5 <- md5s) {
         println(md5.exportMd5Line);
@@ -346,7 +354,7 @@ object Md5Recurse {
         if (!fInfoMd5Option.isDefined) {
           failureMsgs += "Error reading file " + f
         } else {
-          if (config.verbose >= 1) println(debugInfo + " " + fInfoMd5Option.get)
+          if (config.logMd5Scans) println(debugInfo + " " + fInfoMd5Option.get)
           md5s += fInfoMd5Option.get
         }
       }
@@ -365,11 +373,11 @@ object Md5Recurse {
       val currentFileInfo = FileInfoBasic.create(f)
       val recordedMd5InfoOption: Option[Md5FileInfo] = getMd5FileInfoPreferFromAttribute()
       if (recordedMd5InfoOption.isDefined) {
-        if (config.verbose >= 3)
+        if (config.logMd5ScansSkippedAndPrintDetails)
           println(currentFileInfo.getPath())
         val recordedMd5Info: Md5FileInfo = recordedMd5InfoOption.get
         val recordedFileInfo = recordedMd5Info.getFileInfo
-        if (config.verbose >= 3) {
+        if (config.logMd5ScansSkippedAndPrintDetails) {
           println("Cur lastMod=" + currentFileInfo.getLastModified() + ", len=" + recordedFileInfo.getSize())
           println("Rec lastMod=" + recordedFileInfo.getLastModified() + ", len=" + recordedFileInfo.getSize() + ", md5=" + recordedMd5Info.md5String)
         }
@@ -388,13 +396,13 @@ object Md5Recurse {
                 failureMsgs += msg
                 failures += recordedMd5Info
               } else {
-                if (config.verbose >= 1) println("Verified " + f)
+                if (config.logMd5Scans) println("Verified " + f)
               }
               md5s += fInfoMd5
             }
           } else {
             // Old non-verified file
-            if (config.verbose >= 2) println("Skipped " + f)
+            if (config.logMd5ScansAndSkipped) println("Skipped " + f)
             // update file attribute in case we are switching from global file scheme to local, but don't allow updating timestamp, as actual file content may hove changed since we have not locked file
             if (config.useFileAttributes) Md5FileInfo.updateMd5FileAttribute(f, recordedMd5Info)
             md5s += recordedMd5Info // timestamp updated on windows NTFS if fileAttributes written
@@ -470,10 +478,13 @@ object Md5Recurse {
   def execute(config: Config) {
     Md5Recurse.initNativeLibrary()
     val dataFileUpdater = new DataFileUpdater(config)
-    val fileSet =
+    val fileSet: DirToFileMap[Md5FileInfo] =
       if (config.readMd5DataGlobally)
-        Md5FileInfo.readMd5DataFile(new File(config.md5dataGlobalFilePath()))
-      else new DirToFileMap[Md5FileInfo]()
+        Timer.withResult("Md5Recurse.ReadGlobalFile", Config.it.logPerformance) {
+          () => Md5FileInfo.readMd5DataFile(new File(config.md5dataGlobalFilePath()))
+        }
+      else
+        new DirToFileMap[Md5FileInfo]()
 
     def isDirDisabled(dir: File) = {
       val files = dir.listFiles
@@ -488,7 +499,7 @@ object Md5Recurse {
       if (dirOrFile.exists) {
         if (dirOrFile.isDirectory()) {
           if (dirOrFile.listFiles == null) {
-            System.err.println("Unable to read dir, permission denied or io error: " + dirOrFile.getCanonicalPath)
+            System.err.println("Unable to read dir, permission denied or io error: " + dirOrFile.getAbsolutePath)
           } else if (!isDirDisabled(dirOrFile)) {
             val (md5s, failureMd5s, failureMessages) = verifyAndGenerateMd5ForDirectoryNonRecursive(dirOrFile, fileSet.getDir(dirOrFile.getAbsoluteFile))
             postScan(dirOrFile, md5s, failureMd5s, failureMessages)
@@ -517,11 +528,10 @@ object Md5Recurse {
     }
 
     def printDirsOutsideScope(fileSet: DirToFileMap[Md5FileInfo], configSrcDirs: Iterable[File]) {
-      // Use getCanonicalPath because on Windows filenames are not case sensitive
       for (
         prevMapDir <- fileSet.map.keys
         if !configSrcDirs.exists({
-          f => (prevMapDir.getCanonicalPath() + File.separator).startsWith(f.getCanonicalPath() + File.separator)
+          f => (prevMapDir.getPath() + File.separator).startsWith(f.getPath() + File.separator)
         })
       ) {
         if (Config.debugLog) println("Writing outside dir: " + prevMapDir)
@@ -531,8 +541,12 @@ object Md5Recurse {
     }
 
     if (config.doGenerateNew || !config.srcDirs.isEmpty) {
-      execVerifySrcDirList(true, config.srcDirs)
-      printDirsOutsideScope(fileSet, config.srcDirs)
+      Timer("Md5Recurse.Scan files", config.logPerformance) {
+        () => execVerifySrcDirList(true, config.srcDirs)
+      }
+      Timer("Md5Recurse.printDirsOutsideScope", config.logPerformance) {
+        () => printDirsOutsideScope(fileSet, config.srcDirs)
+      }
     } else
       execVerifySrcDirList(false, fileSet.map.keys)
     dataFileUpdater.close()
@@ -582,7 +596,9 @@ object Md5Recurse {
               }
             }
           }
-          execute(config)
+          Timer("Md5Recurse", config.logPerformance) {
+            () => execute(config)
+          }
         }
     } getOrElse {
       // arguments are bad, usage message will have been displayed

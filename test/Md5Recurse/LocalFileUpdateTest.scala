@@ -13,6 +13,38 @@ class LocalFileUpdateTest extends FlatSpec with TestConfig with TestData {
   val MD5DATA_EXT = ".md5data"
   val MD5SUM_EXT = ".md5"
 
+  "Timer" should "perfomance files" in {
+    if (false ) {
+      val testDirPath = copyTestResources / "onlyTwoFiles"
+      val file = new File(testDirPath.path)
+
+      val totalLoops = 10000000
+      val innerLoops = 10000
+      val loops = totalLoops / innerLoops
+
+      def doPeformanceRun(task: () => Unit, name: String): Unit = {
+        // warm up
+        for (i <- 1 to 100) {
+          task.apply()
+        }
+        val timer = new Timer()
+        for (i <- 1 to loops) {
+          task.apply()
+        }
+        val milli = timer.elapsedMilli
+        println(name + " time passed " + milli + "ms")
+      }
+
+      doPeformanceRun(() => for (i <- 1 to innerLoops) "oseth", "string")
+      doPeformanceRun(() => for (i <- 1 to innerLoops) file.getPath, "getPath")
+      doPeformanceRun(() => for (i <- 1 to innerLoops) file.getAbsolutePath, "AbsolutePath")
+      doPeformanceRun(() => for (i <- 1 to innerLoops) file.getCanonicalPath, "CanonicalPath")
+      doPeformanceRun(() => for (i <- 1 to innerLoops) file.getCanonicalFile, "CanonicalFile")
+      doPeformanceRun(() => for (i <- 1 to innerLoops) file.getCanonicalFile.getCanonicalPath, "CanonicalFile.CanonicalPath")
+      doPeformanceRun(() => for (i <- 1 to innerLoops) file.getCanonicalFile.getCanonicalFile.getCanonicalFile.getCanonicalPath, "CanonicalFile.CanonicalPath")
+    }
+  }
+  
   "Local file" should "only be updated if changes exists" in {
     def testLocalFileWrittenAndNotUpdated(localMd5FileExtension: String, md5ToolParam: Array[String]) {
       println(s"Working on extension: $localMd5FileExtension")
@@ -99,29 +131,29 @@ class LocalFileUpdateTest extends FlatSpec with TestConfig with TestData {
     md5DataLine should include("4dfb6df790f3b8b2bf84145c6fb32bac") // Local file should contain actual computed value
   }
 
-//  "With enabled fileAttributes" should "read fileAttribute and the attribute should trump local file md5data" in {
-//    val testDirPath = copyTestResources
-//    val filepath = testDirPath / "dummy1.log"
-//    filepath.exists should be(true)
-//
-//    val localMd5FilePath = testDirPath / Path(".md5data")
-//    localMd5FilePath.exists should be(false)
-//    val globalMd5FilePath = testDirPath / Path("_global.md5data")
-//    globalMd5FilePath.exists should be(false)
-//
-//    deleteMd5FileAttributes(testDirPath)
-//    // bug local file and global file date is incorrect when attribute is updated
-//    val md5Params = Array("-g", testDirPath.path, "--enableLocalMd5Data", filepath.path)
-//    println(testDirPath.path)
-//    println(1)
-//    Md5Recurse.main(md5Params)
-//    localMd5FilePath.lines().foreach(l => println(l))
-//    globalMd5FilePath.lines().foreach(l => println(l))
-//    localMd5FilePath.lines().head should include("4dfb6df790f3b8b2bf84145c6fb32bac") // Local file should contain actual computed value
-//    validateAttr(filepath, "4dfb6df790f3b8b2bf84145c6fb32bac") // File attribute should still contain our dummy value
-//    //    validateAttr(filepath, md5DataLine) // File attribute should still contain our dummy value
-//    Thread.sleep(100)
-//  }
+  //  "With enabled fileAttributes" should "read fileAttribute and the attribute should trump local file md5data" in {
+  //    val testDirPath = copyTestResources
+  //    val filepath = testDirPath / "dummy1.log"
+  //    filepath.exists should be(true)
+  //
+  //    val localMd5FilePath = testDirPath / Path(".md5data")
+  //    localMd5FilePath.exists should be(false)
+  //    val globalMd5FilePath = testDirPath / Path("_global.md5data")
+  //    globalMd5FilePath.exists should be(false)
+  //
+  //    deleteMd5FileAttributes(testDirPath)
+  //    // bug local file and global file date is incorrect when attribute is updated
+  //    val md5Params = Array("-g", testDirPath.path, "--enableLocalMd5Data", filepath.path)
+  //    println(testDirPath.path)
+  //    println(1)
+  //    Md5Recurse.main(md5Params)
+  //    localMd5FilePath.lines().foreach(l => println(l))
+  //    globalMd5FilePath.lines().foreach(l => println(l))
+  //    localMd5FilePath.lines().head should include("4dfb6df790f3b8b2bf84145c6fb32bac") // Local file should contain actual computed value
+  //    validateAttr(filepath, "4dfb6df790f3b8b2bf84145c6fb32bac") // File attribute should still contain our dummy value
+  //    //    validateAttr(filepath, md5DataLine) // File attribute should still contain our dummy value
+  //    Thread.sleep(100)
+  //  }
 
   // Test fails because of bug I havn't solved yet
   "With enabled fileAttributes" should "write fileAttribute with correct timestamp so we don't think file modified on next scan" in {

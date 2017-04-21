@@ -68,7 +68,7 @@ object Md5FileInfo {
   }
 
   private def doLog: Boolean = {
-    Config.debugLog || Config.it != null && Config.it.verbose >= 3 // Config null when directly executed from unit test
+    Config.debugLog || Config.it != null && Config.it.logMd5ScansSkippedAndPrintDetails // Config null when directly executed from unit test
   }
 
   @throws(classOf[ParseException])
@@ -111,7 +111,7 @@ object Md5FileInfo {
           prefixDir = line.substring(1)
         } else if (line.startsWith(">")) {
           dirToFileMap.setDir(currentDir, fileMap)
-          currentDir = new File(prefixDir + line.substring(1)).getCanonicalPath
+          currentDir = new File(prefixDir + line.substring(1)).getAbsolutePath
           fileMap = dirToFileMap.getOrCreateDir(new File(currentDir))
         } else {
           try {
