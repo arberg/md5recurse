@@ -40,11 +40,11 @@ object FileInfoBasic {
   def create(lastModified: Long, size: Long, file: File) = {
     // todo remove converter from Sec to Millis
     val lastModifiedMillis = if (lastModified < 1587194964 && lastModified == file.lastModified() / 1000) file.lastModified() else lastModified
-    new FileInfoBasic(lastModifiedMillis, size, file.getAbsoluteFile.getParentFile.getPath, file.getName)
+    new FileInfoBasic(lastModifiedMillis, size, file.getParentFile.getPath, file.getName)
   }
 
   // Invariant: File is canonicalised
   def create(file: File) = {
-    new FileInfoBasic(file.lastModified, file.length, file.getAbsoluteFile.getParentFile.getPath, file.getName)
+    new FileInfoBasic(file.lastModified, file.length, file.getParentFile.getPath, file.getName)
   }
 }

@@ -27,7 +27,7 @@ object Md5FileInfo {
 
   // read file and generate md5sum
   def readFileGenerateMd5Sum(file: File, updateFileAttribute: Boolean): Option[Md5FileInfo] = {
-    val md5 = Md5Recurse.md5Sum(file.getAbsolutePath)
+    val md5 = Md5Recurse.md5Sum(file.getPath)
     if (md5.isDefined) {
       val md5FileInfo: Md5FileInfo = create(file, md5.get.md5, md5.get.isBinary)
       val md5FileInfoUpdated = if (updateFileAttribute) Md5FileInfo.updateMd5FileAttribute(file, md5FileInfo) else md5FileInfo
@@ -107,11 +107,11 @@ object Md5FileInfo {
       val source = Source.fromFile(md5dataFile, encoding)
       for (line <- source.getLines) {
         lastLine = line
-        if (line.startsWith("+")) {
+        if (line.startsWith("+")) { // I don't think I ever write this, to be removed
           prefixDir = line.substring(1)
         } else if (line.startsWith(">")) {
           dirToFileMap.setDir(currentDir, fileMap)
-          currentDir = new File(prefixDir + line.substring(1)).getAbsolutePath
+          currentDir = prefixDir + line.substring(1)
           fileMap = dirToFileMap.getOrCreateDir(new File(currentDir))
         } else {
           try {

@@ -332,7 +332,7 @@ object Md5Recurse {
     // Read md5data files in dir
     val dirSet =
     if (Config.it.readMd5DataPrDirectory && (globalDirSet.isEmpty || globalDirSet.get.isEmpty)) {
-      Md5FileInfo.readDirFile(dir.getAbsolutePath + "/" + Config.it.md5dataName())
+      Md5FileInfo.readDirFile(dir.getPath + "/" + Config.it.md5dataName())
     } else if (globalDirSet.isDefined)
       globalDirSet.get
     else
@@ -515,9 +515,9 @@ object Md5Recurse {
       if (dirOrFile.exists) {
         if (dirOrFile.isDirectory()) {
           if (dirOrFile.listFiles == null) {
-            System.err.println("Unable to read dir, permission denied or io error: " + dirOrFile.getAbsolutePath)
+            System.err.println("Unable to read dir, permission denied or io error: " + dirOrFile.getPath)
           } else if (!isDirDisabled(dirOrFile)) {
-            val (md5s, failureMd5s, failureMessages) = verifyAndGenerateMd5ForDirectoryNonRecursive(dirOrFile, fileSet.getDir(dirOrFile.getAbsoluteFile))
+            val (md5s, failureMd5s, failureMessages) = verifyAndGenerateMd5ForDirectoryNonRecursive(dirOrFile, fileSet.getDir(dirOrFile))
             postScan(dirOrFile, md5s, failureMd5s, failureMessages)
             if (recurse)
               for (f <- dirOrFile.listFiles().sortBy(_.getName).toList if f.isDirectory()) // Sort traversal to get global files written same order and thus makes text-comparison possible

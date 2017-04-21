@@ -32,9 +32,9 @@ class Md5RecurseTest extends FlatSpec with TestConfig with TestData {
   }
 
   "Md5Recurse scan relative dir" should "generate correct global file" in {
-    val file = Path(SRC_TEST_RES_DIR) / "."
+    val file = Path.fromString(SRC_TEST_RES_DIR) / "."
     md5Recurse(Array("-q", "--globaldir", TEST_EXECUTION_GLOBAL_DIR, "-V", "3", file.toAbsolute.path))
-    val globalFile = Path(TEST_EXECUTION_GLOBAL_DIR) / "_global.md5data"
+    val globalFile = Path.fromString(TEST_EXECUTION_GLOBAL_DIR) / "_global.md5data"
     globalFile.lines()(Codec.UTF8).exists(s => s.contains("/.") || s.contains(File.separator + ".")) should be(false)
   }
 

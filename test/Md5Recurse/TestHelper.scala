@@ -67,7 +67,7 @@ trait TestHelper extends FlatSpec with Matchers {
     * Deletes fileAttribute containing md5-hash for file, then scans the file with MD5TOOL and verifies the new attribute equals expectedMd5
     */
   def md5RecurseFile(filename: String, expectedMd5: Option[String], extraParams: Array[String] = Array()) {
-    val file: File = new File(filename)
+    val file: File = new File(filename).getAbsoluteFile
     file.exists() should be(true)
     val md5FileInfo = Md5FileInfo.readFileGenerateMd5Sum(file, true).get
     if (expectedMd5.isDefined)
