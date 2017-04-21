@@ -8,7 +8,7 @@ import scalax.file.Path
 import scalax.io.Codec
 // http://jesseeichar.github.io/scala-io-doc/0.4.3/index.html#!/file/string_to_file
 
-class LocalFileUpdateTest extends FlatSpec with TestConfig {
+class LocalFileUpdateTest extends FlatSpec with TestConfig with TestData {
 
   val MD5DATA_EXT = ".md5data"
   val MD5SUM_EXT = ".md5"
@@ -18,7 +18,7 @@ class LocalFileUpdateTest extends FlatSpec with TestConfig {
       println(s"Working on extension: $localMd5FileExtension")
       val testDirPath = copyTestResources / "onlyTwoFiles"
       testDirPath.children().size should be(2)
-      val filepath1 = testDirPath / "dummy1.log"
+      val filepath1 = testDirPath / "dummy1a.log"
       val filepath2 = testDirPath / "testfileРС_WithNonISO8859-chars_in_name_Looking_like_PC.log"
       filepath1.exists should be(true)
       filepath2.exists should be(true)
@@ -36,7 +36,7 @@ class LocalFileUpdateTest extends FlatSpec with TestConfig {
 
       // We expect a local MD5 file has been written
       localMd5FilePath.exists should be(true)
-      localMd5FilePath.lines().exists(_.contains("4dfb6df790f3b8b2bf84145c6fb32bac")) should be(true)
+      assertFilesContainExactly(MD5_DUMMY1a, 1, localMd5FilePath)
 
       // Change the test-file
       filepath1.write("New Content")

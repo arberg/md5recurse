@@ -72,15 +72,15 @@ case class Config(
 
   def md5dataGlobalName() = md5FilePrefix + md5DataGlobalFileName;
 
-  def md5dataGlobalFilePath() = md5dataGlobalFolder.get.getAbsolutePath + "/" + md5dataGlobalName();
+  def md5dataGlobalFilePath() = md5dataGlobalFolder.get.getCanonicalPath + "/" + md5dataGlobalName();
 
-  def tmpMd5dataGlobalFilePath() = md5dataGlobalFolder.get.getAbsolutePath + "/temp_" + md5dataGlobalName();
+  def tmpMd5dataGlobalFilePath() = md5dataGlobalFolder.get.getCanonicalPath + "/temp_" + md5dataGlobalName();
 
-  def failureFile() = new File(md5dataGlobalFolder.get.getAbsolutePath + "/" + Sys.currentDateString + (if (md5FilePrefix.isEmpty()) "" else "_") + md5FilePrefix + Config.it.failedVerificationFilePostfix);
+  def failureFile() = new File(md5dataGlobalFolder.get.getCanonicalPath + "/" + Sys.currentDateString + (if (md5FilePrefix.isEmpty()) "" else "_") + md5FilePrefix + Config.it.failedVerificationFilePostfix);
 
-  def failureLogFile() = new File(md5dataGlobalFolder.get.getAbsolutePath + "/" + Sys.currentDateString + (if (md5FilePrefix.isEmpty()) "" else "_") + md5FilePrefix + Config.it.failedVerificationLogFilePostfix);
+  def failureLogFile() = new File(md5dataGlobalFolder.get.getCanonicalPath + "/" + Sys.currentDateString + (if (md5FilePrefix.isEmpty()) "" else "_") + md5FilePrefix + Config.it.failedVerificationLogFilePostfix);
 
-  def errorFile() = new File(md5dataGlobalFolder.get.getAbsolutePath + "/" + Sys.currentDateString + md5FilePrefix + Config.it.errorsFilePostfix);
+  def errorFile() = new File(md5dataGlobalFolder.get.getCanonicalPath + "/" + Sys.currentDateString + md5FilePrefix + Config.it.errorsFilePostfix);
 }
 
 // https://github.com/scopt/scopt
@@ -517,10 +517,11 @@ object Md5Recurse {
     }
 
     def printDirsOutsideScope(fileSet: DirToFileMap[Md5FileInfo], configSrcDirs: Iterable[File]) {
+      // Use getCanonicalPath because on Windows filenames are not case sensitive
       for (
         prevMapDir <- fileSet.map.keys
         if !configSrcDirs.exists({
-          f => (prevMapDir.getAbsolutePath() + File.separator).startsWith(f.getAbsolutePath() + File.separator)
+          f => (prevMapDir.getCanonicalPath() + File.separator).startsWith(f.getCanonicalPath() + File.separator)
         })
       ) {
         if (Config.debugLog) println("Writing outside dir: " + prevMapDir)

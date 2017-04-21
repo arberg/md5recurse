@@ -21,10 +21,6 @@ class GlobalWriter(config: Config) extends GlobalWriterTrait {
 
     def write(dir: File, md5s: List[Md5FileInfo]) {
       writeGlobalMd5data(writer, dir, md5s)
-      if (!config.doVerify) {
-        // Flush more quickly when check'ing md5's because it'll take longer anyway, and in case command is C-c'ed its worth having the extra output, plus it gives comfort when seeing it run
-        writer.flush
-      }
     }
 
     def close() {
