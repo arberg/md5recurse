@@ -10,6 +10,18 @@ import scalax.file.Path
   * Created by Alex on 26-12-2016.
   */
 trait TestHelper extends FlatSpec with Matchers {
+  def assertFileNotContains(path: Path, expectedSubString: String): Unit = {
+    assertFileContainsExactly(path, expectedSubString, 0)
+  }
+
+  def assertFileContains(path: Path, expectedSubString: String): Unit = {
+    assert(path.lines().filter(l => l.contains(expectedSubString)).size > 0)
+  }
+
+  def assertFileContainsExactly(path: Path, expectedSubString: String, count: Int): Unit = {
+    assert(path.lines().filter(l => l.contains(expectedSubString)).size === count)
+  }
+
   def validateAttr(path: Path, expectedMd5: String): Unit = {
     validateAttr(new File(path.path), expectedMd5)
   }

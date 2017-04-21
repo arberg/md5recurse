@@ -21,12 +21,19 @@ trait TestConfig extends FlatSpec with TestHelper {
   val SRC_TEST_RES_DIR = "test-res/files"
   private val TEST_RES_DIR_PATH = Path.fromString("test-res/files")
 
+  def pathContainsFile(path : Path) : Boolean = {
+    path.children().flatMap(child => if (child.isDirectory) child.children() else List(child)).exists(_.isFile)
+  }
+
+  def createDir(path : Path) {
+    if (path.nonExistent) path.createDirectory()
+  }
+
   def cleanTestDir = {
-//    Thread.sleep(2000) // Because delete sometimes fail, with 2000, sleep does not seem to help
     val (_, filesRemaining) = TEST_EXECUTION_DIR_PATH.deleteRecursively(force=true, continueOnFailure = true) // continueOnFailure because of bad error message
-    if (filesRemaining > 0) throw new RuntimeException("Unable to clean old dir")
-    TEST_EXECUTION_DIR_PATH.createDirectory()
-    Path.fromString(TEST_EXECUTION_GLOBAL_DIR).createDirectory()
+    if (filesRemaining > 0 && pathContainsFile(TEST_EXECUTION_DIR_PATH)) throw new RuntimeException("Unable to clean old dir")
+    createDir(TEST_EXECUTION_DIR_PATH)
+    createDir(Path.fromString(TEST_EXECUTION_GLOBAL_DIR))
     TEST_EXECUTION_DIR
   }
 
@@ -37,7 +44,7 @@ trait TestConfig extends FlatSpec with TestHelper {
   def copyTestResources : Path = {
     cleanTestDir
     assert(TEST_EXECUTION_DIR_PATH.exists, TEST_EXECUTION_DIR_PATH.toString())
-    val testRes = TEST_RES_DIR_PATH.copyTo(target = TEST_EXECUTION_DIR_PATH / "testRes", copyAttributes = false)
+    val testRes = TEST_RES_DIR_PATH.copyTo(target = TEST_EXECUTION_DIR_PATH / "testRes", copyAttributes = false, replaceExisting = true)
     deleteMd5FileAttributes(testRes)
     testRes
   }

@@ -5,6 +5,8 @@ import java.security.MessageDigest
 import java.text.SimpleDateFormat
 import java.util.Calendar
 
+// IntelliJ frequently deletes the import or changes it:
+// import WordWrap._
 import WordWrap._
 import com.twmacinta.util.MD5
 
@@ -409,27 +411,69 @@ object Md5Recurse {
     (md5s.toList, failures.toList, failureMsgs.toList)
   }
 
-
-  // Should be split into parent with writer ability
-   def execute(config: Config) {
-    Md5Recurse.initNativeLibrary()
-
-    val fileSet =
-      if (config.readMd5DataGlobally)
-        Md5FileInfo.readFile(new File(config.md5dataGlobalFilePath()))
-      else new DirAndFileMap[Md5FileInfo]()
+  class DataFileUpdater(config: Config) {
     val globalWriter = new GlobalWriter(config)
     val failureWriter = new FailureWriter(config)
+    val pendingMd5sMap = new DirToFileMap[Md5FileInfo]
 
-    def updateFileSetAndWriteFiles(dir: File, md5s: List[Md5FileInfo], failures: List[Md5FileInfo], failureMsgs: List[String]) {
+    def close(): Unit = {
+      globalWriter.close();
+      failureWriter.close();
+    }
+
+    private def write(dir: File, md5s: List[Md5FileInfo]): Unit = {
+      globalWriter.write(dir, md5s)
+      writeBothMd5Files(dir, md5s)
+    }
+
+    def updateFileSetAndWriteFilesForDir(dir: File, md5s: List[Md5FileInfo]) {
       // Sort to make text-comparison of files more useful
       val sortedMd5s = md5s.sortBy(_.fileName())
-      val sortedFailures = failures.sortBy(_.fileName())
       if (Config.it.printMd5) printMd5Hashes(dir, sortedMd5s)
-      globalWriter.write(dir, sortedMd5s)
-      failureWriter.write(dir, sortedFailures, failureMsgs)
-      writeBothMd5Files(dir, sortedMd5s)
+      write(dir, sortedMd5s)
     }
+
+    def updateFilesIncludePendingChanges(dir: File, originalGlobalFileMap: Map[String, Md5FileInfo]): Unit = {
+      val fileMapperOption: Option[Map[String, Md5FileInfo]] = pendingMd5sMap.removeDir(dir)
+      var updatedFileMap: Map[String, Md5FileInfo] = null
+      if (fileMapperOption.isDefined) {
+        updatedFileMap = originalGlobalFileMap ++ fileMapperOption.get // new (on the right) overwrites old values
+      } else {
+        updatedFileMap = originalGlobalFileMap
+      }
+      write(dir, updatedFileMap.values.toList)
+    }
+
+    /**
+      * Write the final pending changes. Needed when scanning individual files
+      */
+    def updateFilesFinalPendingChanges(): Unit = {
+      for (pendingDir <- pendingMd5sMap.map.keys) {
+        updateFileSetAndWriteFilesForDir(pendingDir, pendingMd5sMap.removeDir(pendingDir).get.values.toList)
+      }
+    }
+
+    def updateFileSetAndWriteFiles(dirOrFile: File, md5s: List[Md5FileInfo], failures: List[Md5FileInfo], failureMsgs: List[String]) {
+      val dir = if (dirOrFile.isDirectory) dirOrFile else dirOrFile.getParentFile
+      if (dirOrFile.isDirectory) {
+        updateFileSetAndWriteFilesForDir(dirOrFile, md5s)
+      } else {
+        val fileMapper: mutable.Map[String, Md5FileInfo] = pendingMd5sMap.getOrCreateDir(dir)
+        md5s foreach (fileInfo => fileMapper += (fileInfo.fileName() -> fileInfo))
+      }
+      val sortedFailures = failures.sortBy(_.fileName())
+      failureWriter.write(dir, sortedFailures, failureMsgs)
+    }
+  }
+
+  // Should be split into parent with writer ability
+  def execute(config: Config) {
+    Md5Recurse.initNativeLibrary()
+    val dataFileUpdater = new DataFileUpdater(config)
+    val fileSet =
+      if (config.readMd5DataGlobally)
+        Md5FileInfo.readMd5DataFile(new File(config.md5dataGlobalFilePath()))
+      else new DirToFileMap[Md5FileInfo]()
 
     def isDirDisabled(dir: File) = {
       val files = dir.listFiles
@@ -440,7 +484,7 @@ object Md5Recurse {
       }
     }
 
-    def execVerifyByRecursion(recurse: Boolean, dirOrFile: File, fileSet: DirAndFileMap[Md5FileInfo], postScan: (File, List[Md5FileInfo], List[Md5FileInfo], List[String]) => Unit) {
+    def execVerifyByRecursion(recurse: Boolean, dirOrFile: File, fileSet: DirToFileMap[Md5FileInfo], postScan: (File, List[Md5FileInfo], List[Md5FileInfo], List[String]) => Unit) {
       if (dirOrFile.exists) {
         if (dirOrFile.isDirectory()) {
           if (dirOrFile.listFiles == null) {
@@ -455,7 +499,7 @@ object Md5Recurse {
         } else {
           val dir = dirOrFile.getParentFile
           val (md5s, failureMd5s, failureMessages) = verifyAndGenerateMd5SingleFile(dirOrFile, fileSet.getDir(dir))
-          postScan(dir, md5s, failureMd5s, failureMessages)
+          postScan(dirOrFile, md5s, failureMd5s, failureMessages)
         }
       } else if (Config.it.doPrintMissing) {
         println("MissingDir " + dirOrFile)
@@ -468,16 +512,21 @@ object Md5Recurse {
     def execVerifySrcDirList(recurse: Boolean, dirs: Iterable[File]) {
       for (srcDir <- dirs) {
         // Convert srcDir to real path (not just absolute) to avoid /./ and relative names in global file
-        execVerifyByRecursion(recurse, new File(Path(srcDir).toRealPath().path), fileSet, updateFileSetAndWriteFiles)
+        execVerifyByRecursion(recurse, new File(Path(srcDir).toRealPath().path), fileSet, dataFileUpdater.updateFileSetAndWriteFiles)
       }
     }
 
-    def printDirsOutsideScope(fileSet: DirAndFileMap[Md5FileInfo], configSrcDirs: Iterable[File]) {
-      for (prevMapDir <- fileSet.map.keys if !configSrcDirs.exists({
-        f => (prevMapDir.getAbsolutePath() + File.separator).startsWith(f.getAbsolutePath() + File.separator)
-      })) {
-        globalWriter.write(prevMapDir, fileSet.getDir(prevMapDir).get.values.toList)
+    def printDirsOutsideScope(fileSet: DirToFileMap[Md5FileInfo], configSrcDirs: Iterable[File]) {
+      for (
+        prevMapDir <- fileSet.map.keys
+        if !configSrcDirs.exists({
+          f => (prevMapDir.getAbsolutePath() + File.separator).startsWith(f.getAbsolutePath() + File.separator)
+        })
+      ) {
+        if (Config.debugLog) println("Writing outside dir: " + prevMapDir)
+        dataFileUpdater.updateFilesIncludePendingChanges(prevMapDir, fileSet.getDir(prevMapDir).get)
       }
+      dataFileUpdater.updateFilesFinalPendingChanges()
     }
 
     if (config.doGenerateNew || !config.srcDirs.isEmpty) {
@@ -485,8 +534,7 @@ object Md5Recurse {
       printDirsOutsideScope(fileSet, config.srcDirs)
     } else
       execVerifySrcDirList(false, fileSet.map.keys)
-    globalWriter.close();
-    failureWriter.close();
+    dataFileUpdater.close()
   }
 
   def deleteMd5s(config: Config) = {

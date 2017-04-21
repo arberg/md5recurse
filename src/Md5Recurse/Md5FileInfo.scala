@@ -95,7 +95,7 @@ object Md5FileInfo {
 
   def readDirFile(md5dataFilename: String): Map[String, Md5FileInfo] = {
     val md5dataFile = new File(md5dataFilename)
-    val fileSet = readFile(md5dataFile)
+    val fileSet = readMd5DataFile(md5dataFile)
     val o = fileSet.getDir(md5dataFile.getParentFile)
     if (o.isEmpty) new immutable.HashMap[String, Md5FileInfo]() else o.get
   }
@@ -104,43 +104,43 @@ object Md5FileInfo {
     file.getParentFile.getAbsolutePath
   }
 
-  def readFile(md5dataFile: File): DirAndFileMap[Md5FileInfo] = {
-    val fileSet = new DirAndFileMap[Md5FileInfo];
+  def readMd5DataFile(md5dataFile: File): DirToFileMap[Md5FileInfo] = {
+    val dirToFileMap = new DirToFileMap[Md5FileInfo];
     val encoding = "UTF-8"
     var lineNo = 1;
     var lastLine = "";
     try {
       var prefixDir: String = ""
       var currentDir: String = getFileDir(md5dataFile)
-      var dirMap = fileSet.getOrCreateDir(new File(currentDir))
+      var fileMap = dirToFileMap.getOrCreateDir(new File(currentDir))
       val source = Source.fromFile(md5dataFile, encoding)
       for (line <- source.getLines) {
         lastLine = line
         if (line.startsWith("+")) {
           prefixDir = line.substring(1)
         } else if (line.startsWith(">")) {
-          fileSet.setDir(currentDir, dirMap)
+          dirToFileMap.setDir(currentDir, fileMap)
           currentDir = new File(prefixDir + line.substring(1)).getAbsolutePath
-          dirMap = fileSet.getOrCreateDir(new File(currentDir))
+          fileMap = dirToFileMap.getOrCreateDir(new File(currentDir))
         } else {
           try {
             val fileInfo = Md5FileInfo.parseMd5DataLine(currentDir, line)
-            dirMap += (fileInfo.fileName() -> fileInfo)
+            fileMap += (fileInfo.fileName() -> fileInfo)
           } catch {
             case e: RuntimeException => System.err.println("Error occurred reading file " + md5dataFile + " @ line " + lineNo + " Parse error: " + lastLine)
           }
         }
         lineNo += 1
       }
-      fileSet.setDir(currentDir, dirMap)
+      dirToFileMap.setDir(currentDir, fileMap)
       source.close
     } catch {
       case e: FileNotFoundException =>
       case e: MalformedInputException => System.err.println("File in different charset encoding, read file with " + encoding + ": " + md5dataFile)
       case e: RuntimeException => System.err.println("Error occurred reading file " + md5dataFile + " @ line " + lineNo + "(will skip rest of file, and regenerate new): " + lastLine)
     }
-    fileSet.setDoneBuilding;
-    fileSet
+    dirToFileMap.setDoneBuilding;
+    dirToFileMap
   }
 
   def updateMd5FileAttribute(file: File, md5FileInfo: Md5FileInfo): Md5FileInfo = {
