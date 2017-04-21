@@ -148,7 +148,7 @@ object Md5FileInfo {
     val attrView: UserDefinedFileAttributeView = FileUtil.attrView(file)
     val oldAttr = FileUtil.getAttr(attrView, Md5FileInfo.ATTR_MD5RECURSE)
 
-    val allowUpdateFileModified = md5FileInfo.lastModifiedSec() == file.lastModified() / 1000
+    val allowUpdateFileModified = md5FileInfo.lastModified() == file.lastModified()
 
     // only update changes
     def doUpdate(inputMd5FileInfo: Md5FileInfo, i: Int): Md5FileInfo = {
@@ -159,7 +159,7 @@ object Md5FileInfo {
         }
       }
       val updated = inputMd5FileInfo.createUpdateTimestamp
-      if (updated.lastModifiedSec() != inputMd5FileInfo.lastModifiedSec() && i < MAX_WRITE_ATTEMPTS && allowUpdateFileModified)
+      if (updated.lastModified() != inputMd5FileInfo.lastModified() && i < MAX_WRITE_ATTEMPTS && allowUpdateFileModified)
         doUpdate(updated, i + 1)
       else
         inputMd5FileInfo
@@ -170,7 +170,7 @@ object Md5FileInfo {
     FileUtil.doWithLockedFile(file) {
       () => {
         val updatedMd5FileInfo = doUpdate(md5FileInfo, 0)
-        if (file.lastModified() / 1000 != updatedMd5FileInfo.lastModifiedSec() && allowUpdateFileModified) {
+        if (file.lastModified() != updatedMd5FileInfo.lastModified() && allowUpdateFileModified) {
           println("WARNING: Failed to set fileAttribute with same lastModified as file timestamp")
           updatedMd5FileInfo.createUpdateTimestamp
         } else {
@@ -191,7 +191,7 @@ class Md5FileInfo(fileInfo: FileInfoBasic, md5: String, isBinaryMd5: Boolean) {
 
   def size(): Long = fileInfo.getSize
 
-  def lastModifiedSec(): Long = fileInfo.getLastModifiedSec
+  def lastModified(): Long = fileInfo.getLastModified
 
   //  def file(): File = fileInfo.file
   def filePath(): String = fileInfo.getPath

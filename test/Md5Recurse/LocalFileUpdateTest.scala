@@ -130,7 +130,7 @@ class LocalFileUpdateTest extends FlatSpec with TestConfig {
     filepath.exists should be(true)
 
     def repeatTest(params: Array[String]) = {
-      def lastMod() = FileInfoBasic.create(new File(filepath.path)).getLastModifiedSec()
+      def lastMod() = FileInfoBasic.create(new File(filepath.path)).getLastModified()
 
       println()
       // If I don't copyTestResources then below won't update file modified timestamp on each run.
@@ -139,7 +139,7 @@ class LocalFileUpdateTest extends FlatSpec with TestConfig {
       Md5Recurse.main(params)
       val firstLastModified = lastMod()
       for (i <- 1 to 4) {
-        Thread.sleep(1000)
+        Thread.sleep(20)
         Md5Recurse.main(params)
         val currentLastMod = lastMod()
         if (currentLastMod != firstLastModified) {

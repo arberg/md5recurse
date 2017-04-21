@@ -378,10 +378,10 @@ object Md5Recurse {
         val recordedMd5Info: Md5FileInfo = recordedMd5InfoOption.get
         val recordedFileInfo = recordedMd5Info.getFileInfo
         if (config.verbose >= 3) {
-          println("Cur lastMod=" + currentFileInfo.getLastModifiedSec() + ", len=" + recordedFileInfo.getSize())
-          println("Rec lastMod=" + recordedFileInfo.getLastModifiedSec() + ", len=" + recordedFileInfo.getSize() + ", md5=" + recordedMd5Info.md5String)
+          println("Cur lastMod=" + currentFileInfo.getLastModified() + ", len=" + recordedFileInfo.getSize())
+          println("Rec lastMod=" + recordedFileInfo.getLastModified() + ", len=" + recordedFileInfo.getSize() + ", md5=" + recordedMd5Info.md5String)
         }
-        if (currentFileInfo.getLastModifiedSec() == recordedFileInfo.getLastModifiedSec()) {
+        if (currentFileInfo.getLastModified() == recordedFileInfo.getLastModified()) {
           //  still check if filesize change, to generate new md5
           if (Config.it.doVerify) {
             val fInfoMd5Option = Md5FileInfo.readFileGenerateMd5Sum(f, config.useFileAttributes)
