@@ -5,6 +5,8 @@ import java.security.MessageDigest
 import java.text.SimpleDateFormat
 import java.util.Calendar
 
+import scala.collection.mutable.ListBuffer
+
 // IntelliJ frequently deletes the import or changes it:
 // import WordWrap._
 import WordWrap._
@@ -243,7 +245,7 @@ object Md5Recurse {
           try {
             path.writeStrings(strings = outLines, separator = "\n")
           } catch {
-            case exception: scalax.io.ScalaIOException => {
+            case exception: scalax.io.ScalaIOException =>
               exception.getCause() match {
                 case e1: java.nio.charset.UnmappableCharacterException => {
                   println(s"WARNING: Character could not be written as with encoding $encoding, file will be written using UTF-8: $file")
@@ -251,7 +253,9 @@ object Md5Recurse {
                 }
                 case _ => throw exception
               }
-            }
+            case e: java.io.IOException =>
+              System.err.println("Unable to write file " + path.path + ": " + e.getMessage)
+              System.err.flush()
           }
         }
       }
@@ -429,27 +433,27 @@ object Md5Recurse {
       failureWriter.close();
     }
 
-    private def write(dir: File, md5s: List[Md5FileInfo]): Unit = {
-      globalWriter.write(dir, md5s)
+    private def write(dir: File, md5s: List[Md5FileInfo], doFlush: Boolean): Unit = {
+      globalWriter.write(dir, md5s, doFlush)
       writeBothMd5Files(dir, md5s)
     }
 
-    def updateFileSetAndWriteFilesForDir(dir: File, md5s: List[Md5FileInfo]) {
+    def updateFileSetAndWriteFilesForDir(dir: File, md5s: List[Md5FileInfo], doFlush: Boolean) {
       // Sort to make text-comparison of files more useful
       val sortedMd5s = md5s.sortBy(_.fileName())
       if (Config.it.printMd5) printMd5Hashes(dir, sortedMd5s)
-      write(dir, sortedMd5s)
+      write(dir, sortedMd5s, doFlush)
     }
 
     def updateFilesIncludePendingChanges(dir: File, originalGlobalFileMap: Map[String, Md5FileInfo]): Unit = {
       val fileMapperOption: Option[Map[String, Md5FileInfo]] = pendingMd5sMap.removeDir(dir)
-      var updatedFileMap: Map[String, Md5FileInfo] = null
-      if (fileMapperOption.isDefined) {
-        updatedFileMap = originalGlobalFileMap ++ fileMapperOption.get // new (on the right) overwrites old values
-      } else {
-        updatedFileMap = originalGlobalFileMap
-      }
-      write(dir, updatedFileMap.values.toList)
+      // map ++ has new md5s on the right so it overwrites old values
+      val updatedFileMap = if (fileMapperOption.isDefined) originalGlobalFileMap ++ fileMapperOption.get else originalGlobalFileMap
+      val md5s = updatedFileMap.values.toList
+      globalWriter.write(dir, md5s, false)
+      // Only update local files if there are changes
+      if (fileMapperOption.isDefined)
+        writeBothMd5Files(dir, md5s)
     }
 
     /**
@@ -457,20 +461,44 @@ object Md5Recurse {
       */
     def updateFilesFinalPendingChanges(): Unit = {
       for (pendingDir <- pendingMd5sMap.map.keys) {
-        updateFileSetAndWriteFilesForDir(pendingDir, pendingMd5sMap.removeDir(pendingDir).get.values.toList)
+        updateFileSetAndWriteFilesForDir(pendingDir, pendingMd5sMap.removeDir(pendingDir).get.values.toList, false)
       }
     }
 
     def updateFileSetAndWriteFiles(dirOrFile: File, md5s: List[Md5FileInfo], failures: List[Md5FileInfo], failureMsgs: List[String]) {
       val dir = if (dirOrFile.isDirectory) dirOrFile else dirOrFile.getParentFile
       if (dirOrFile.isDirectory) {
-        updateFileSetAndWriteFilesForDir(dirOrFile, md5s)
+        updateFileSetAndWriteFilesForDir(dirOrFile, md5s, true)
       } else {
         val fileMapper: mutable.Map[String, Md5FileInfo] = pendingMd5sMap.getOrCreateDir(dir)
         md5s foreach (fileInfo => fileMapper += (fileInfo.fileName() -> fileInfo))
       }
       val sortedFailures = failures.sortBy(_.fileName())
       failureWriter.write(dir, sortedFailures, failureMsgs)
+    }
+  }
+
+  def printDirsOutsideScope(dataFileUpdater: DataFileUpdater, fileSet: DirToFileMap[Md5FileInfo], configSrcDirs: Iterable[File]) {
+    val dirsToUpdate = ListBuffer[(File, Map[String, Md5FileInfo])]()
+    val config = Config.it
+    Timer("Md5Recurse.printDirsOutsideScope.buildList", config.logPerformance) { () =>
+      for (
+        prevMapDir <- fileSet.map
+        if !configSrcDirs.exists({
+          f => (prevMapDir._1.getPath() + File.separator).startsWith(f.getPath() + File.separator)
+        })
+      ) {
+        dirsToUpdate += prevMapDir
+      }
+    }
+    Timer("Md5Recurse.printDirsOutsideScope.doUpdate", config.logPerformance) { () =>
+      for (prevMapDir <- dirsToUpdate) {
+        if (Config.debugLog) println("Writing outside dir: " + prevMapDir)
+        dataFileUpdater.updateFilesIncludePendingChanges(prevMapDir._1, prevMapDir._2)
+      }
+    }
+    Timer("Md5Recurse.printDirsOutsideScope.updateFilesFinalPendingChanges", config.logPerformance) { () =>
+      dataFileUpdater.updateFilesFinalPendingChanges()
     }
   }
 
@@ -527,25 +555,12 @@ object Md5Recurse {
       }
     }
 
-    def printDirsOutsideScope(fileSet: DirToFileMap[Md5FileInfo], configSrcDirs: Iterable[File]) {
-      for (
-        prevMapDir <- fileSet.map.keys
-        if !configSrcDirs.exists({
-          f => (prevMapDir.getPath() + File.separator).startsWith(f.getPath() + File.separator)
-        })
-      ) {
-        if (Config.debugLog) println("Writing outside dir: " + prevMapDir)
-        dataFileUpdater.updateFilesIncludePendingChanges(prevMapDir, fileSet.getDir(prevMapDir).get)
-      }
-      dataFileUpdater.updateFilesFinalPendingChanges()
-    }
-
     if (config.doGenerateNew || !config.srcDirs.isEmpty) {
       Timer("Md5Recurse.Scan files", config.logPerformance) {
         () => execVerifySrcDirList(true, config.srcDirs)
       }
       Timer("Md5Recurse.printDirsOutsideScope", config.logPerformance) {
-        () => printDirsOutsideScope(fileSet, config.srcDirs)
+        () => printDirsOutsideScope(dataFileUpdater, fileSet, config.srcDirs)
       }
     } else
       execVerifySrcDirList(false, fileSet.map.keys)
