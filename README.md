@@ -1,6 +1,6 @@
 MD5Recurse
 ==========
-A tool for generating MD5 checksums recursively for all files in a set of folders. It can
+MD5Recurse is a tool for generating and verifying MD5 checksums recursively for all files in a set of folders. It can
 
 * generate MD5 checksums for all files, 
 * or just update for files with newer lastModified timestamps since last scan,
@@ -24,3 +24,7 @@ The script scans all disks separately and creates a global-md5data file for each
 # Usages
 * Should a disk fail the global-disk files can be used to verify a possible restore of the disk. 
 * Should a subfolder in the common user-folder be lost and later restored, then the global user-md5data can be used to verify the content of the restored folder.
+
+MD5 vs SHA-1
+==========
+The tool only supports MD5, not other hashes such as SHA-1. There are known collissions in the MD5 checksum but not in the SHA-1 checksum. The rationale for using MD5 is the following. If a files content is altered for instance due to bitrot or bad restore then that change is to some extent random, it is not constructed by a human trying to subvert the security. Thus the probability that the new files MD5 checksum will be equal to the old checksum is roughly the probability that two random files have the same checksum. And that is not very likely to say the least, see [StackOverflow: How many random elements before MD5 produces collisions?](http://stackoverflow.com/questions/201705/how-many-random-elements-before-md5-produces-collisions).
