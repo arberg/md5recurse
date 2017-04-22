@@ -3,7 +3,6 @@ package Md5Recurse
 import java.io.{File, PrintWriter}
 
 import org.scalatest._
-
 import scalax.file.Path
 // http://jesseeichar.github.io/scala-io-doc/0.4.3/index.html#!/file/string_to_file
 //import scalax.file.defaultfs.DefaultPath
@@ -14,12 +13,12 @@ import scalax.file.Path
 
 trait TestConfig extends FlatSpec with TestHelper {
 
-  val TEST_EXECUTION_DIR = "bin/testExecution"
+  val TEST_EXECUTION_DIR = "build/testExecution"
   val TEST_EXECUTION_DIR_PATH = Path.fromString(TEST_EXECUTION_DIR)
   val TEST_EXECUTION_DIR_FILE = new File(TEST_EXECUTION_DIR)
   val TEST_EXECUTION_GLOBAL_DIR = TEST_EXECUTION_DIR + "/globalDir"
-  val SRC_TEST_RES_DIR = "test-res/files"
-  private val TEST_RES_DIR_PATH = Path.fromString("test-res/files")
+  val SRC_TEST_RES_DIR = "src/test/res/files"
+  private val TEST_RES_DIR_PATH = Path.fromString(SRC_TEST_RES_DIR)
 
   def pathContainsFile(path : Path) : Boolean = {
     path.children().flatMap(child => if (child.isDirectory) child.children() else List(child)).exists(_.isFile)
@@ -43,7 +42,7 @@ trait TestConfig extends FlatSpec with TestHelper {
     */
   def copyTestResources : Path = {
     cleanTestDir
-    assert(TEST_EXECUTION_DIR_PATH.exists, TEST_EXECUTION_DIR_PATH.toString())
+    assert(TEST_EXECUTION_DIR_PATH.exists, TEST_EXECUTION_DIR_PATH.toString)
     val testRes = TEST_RES_DIR_PATH.copyTo(target = TEST_EXECUTION_DIR_PATH / "testRes", copyAttributes = false, replaceExisting = true)
     deleteMd5FileAttributes(testRes)
     testRes

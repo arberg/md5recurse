@@ -1,12 +1,15 @@
 package Md5Recurse
 
 import java.io.File
+
 import org.scalatest._
 
-class FileUtilTest extends FlatSpec with Matchers {
+class FileUtilTest extends FlatSpec with Matchers with TestConfig {
 
   "FileUtil" should "should read/write attributes" in {
-    val f = new File("""test-res/files/dummy1.log""")
+    val testDirPath = copyTestResources
+    val path = testDirPath / "dummy1.log"
+    val f = new File(path.path)
 
     val name: String = "test"
     val value1: String = "value1"

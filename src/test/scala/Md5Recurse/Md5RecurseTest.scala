@@ -62,7 +62,7 @@ class Md5RecurseTest extends FlatSpec with TestConfig with TestData {
   }
 
   "Md5Recurse scan single file without dir" should "not crash" in {
-    md5RecurseFile("test-res/files/dummy1.log", None)
+    md5RecurseFile(SRC_TEST_RES_DIR + "/dummy1.log", None)
   }
 
   "Md5Recurse scan" should "global and local files not duplicated content" in {
