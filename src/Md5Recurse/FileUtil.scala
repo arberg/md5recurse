@@ -55,16 +55,41 @@ object FileUtil {
     Files.getFileAttributeView(file.toPath, classOf[UserDefinedFileAttributeView]);
   }
 
-  def doWithLockedFile[T](file: File)(supplier: () => T): T = {
+  def doWithLockedFile[T](file: File, onFailureResponse: T)(supplier: () => T): T = {
     // Lock the file so others cannot write file, while we read it to generate MD5 and then write fileAttribute
     // We don't need the lock on linux, unless the filesystem is mounted NTFS I think. Its probably filesystem dependent not OS dependent.
     val in = new FileInputStream(file);
     try {
-      val lock = in.getChannel().lock(0L, Long.MaxValue, true)
-      try {
-        supplier.apply()
-      } finally {
-        lock.release();
+      val lock = in.getChannel().tryLock(0L, Long.MaxValue, true)
+      if (lock != null) {
+        try {
+          supplier.apply()
+        } finally {
+          lock.release();
+        }
+      } else {
+        System.err.println("Failed to lock file for reading: " + file)
+        onFailureResponse
+      }
+    } finally {
+      in.close();
+    }
+  }
+
+  def doWithLockedFile[T](file: File)(supplier: () => Unit) {
+    // Lock the file so others cannot write file, while we read it to generate MD5 and then write fileAttribute
+    // We don't need the lock on linux, unless the filesystem is mounted NTFS I think. Its probably filesystem dependent not OS dependent.
+    val in = new FileInputStream(file);
+    try {
+      val lock = in.getChannel().tryLock(0L, Long.MaxValue, true)
+      if (lock != null) {
+        try {
+          supplier.apply()
+        } finally {
+          lock.release();
+        }
+      } else {
+        System.err.println("Failed to lock file for reading: " + file)
       }
     } finally {
       in.close();

@@ -4,7 +4,7 @@ import java.io.{File, FileNotFoundException}
 import java.nio.charset.MalformedInputException
 import java.nio.file.attribute.UserDefinedFileAttributeView
 
-import scala.collection.{Map, immutable}
+import scala.collection.Map
 import scala.io.Source
 //import scalax.file
 //import scalax.file.{FileSystem, Path}
@@ -27,17 +27,18 @@ object Md5FileInfo {
 
   // read file and generate md5sum
   def readFileGenerateMd5Sum(file: File, updateFileAttribute: Boolean): Option[Md5FileInfo] = {
+    val lastModified = file.lastModified() // Read last modified before scanning file, in case file changes during scan, we could also lock file, but that seems unnecessary and would cause some reads to fail
     val md5 = Md5Recurse.md5Sum(file.getPath)
     if (md5.isDefined) {
-      val md5FileInfo: Md5FileInfo = create(file, md5.get.md5, md5.get.isBinary)
+      val md5FileInfo: Md5FileInfo = create(file, lastModified, md5.get.md5, md5.get.isBinary)
       val md5FileInfoUpdated = if (updateFileAttribute) Md5FileInfo.updateMd5FileAttribute(file, md5FileInfo) else md5FileInfo
       Some(md5FileInfoUpdated)
     }
     else None
   }
 
-  def create(file: File, md5: String, isBinary: Boolean) = {
-    new Md5FileInfo(FileInfoBasic.create(file), md5, isBinary)
+  def create(file: File, lastModified: Long, md5: String, isBinary: Boolean) = {
+    new Md5FileInfo(FileInfoBasic.create(lastModified, file), md5, isBinary)
   }
 
   def parseMd5DataLine(dir: String, dataLine: String) = {
@@ -95,6 +96,12 @@ object Md5FileInfo {
     file.getParentFile.getCanonicalPath
   }
 
+  /**
+    * Reads MD5 data files. The reader supports reading concatenated files, where the same directory is mentioned several times. If files appear multiple times, the last file will be remembered
+    *
+    * @param md5dataFile
+    * @return
+    */
   def readMd5DataFile(md5dataFile: File): DirToFileMap[Md5FileInfo] = {
     val dirToFileMap = new DirToFileMap[Md5FileInfo];
     val encoding = "UTF-8"
@@ -135,40 +142,33 @@ object Md5FileInfo {
   }
 
   def updateMd5FileAttribute(file: File, md5FileInfo: Md5FileInfo): Md5FileInfo = {
-    val MAX_WRITE_ATTEMPTS = 5
     val attrView: UserDefinedFileAttributeView = FileUtil.attrView(file)
     val oldAttr = FileUtil.getAttr(attrView, Md5FileInfo.ATTR_MD5RECURSE)
 
-    val allowUpdateFileModified = md5FileInfo.lastModified() == file.lastModified()
-
     // only update changes
-    def doUpdate(inputMd5FileInfo: Md5FileInfo, i: Int): Md5FileInfo = {
+    def doUpdate(inputMd5FileInfo: Md5FileInfo) {
       val newDataLine = inputMd5FileInfo.exportAttrLine
       if (!oldAttr.isDefined || oldAttr.get != newDataLine) {
         if (FileUtil.setAttr(attrView, Md5FileInfo.ATTR_MD5RECURSE, newDataLine)) {
           if (Md5FileInfo.doLog) println(file + ": Attr written: '" + newDataLine + "'" + " - New lastModified " + file.lastModified())
         }
       }
-      val updated = inputMd5FileInfo.createUpdateTimestamp
-      if (updated.lastModified() != inputMd5FileInfo.lastModified() && i < MAX_WRITE_ATTEMPTS && allowUpdateFileModified)
-        doUpdate(updated, i + 1)
-      else
-        inputMd5FileInfo
     }
 
     // Lock the file so others cannot write file, while we read it to generate MD5 and then write fileAttribute
     // We don't need the lock on linux, unless the filesystem is mounted NTFS I think. Its probably filesystem dependent not OS dependent.
     FileUtil.doWithLockedFile(file) {
       () => {
-        val updatedMd5FileInfo = doUpdate(md5FileInfo, 0)
-        if (file.lastModified() != updatedMd5FileInfo.lastModified() && allowUpdateFileModified) {
-          println("WARNING: Failed to set fileAttribute with same lastModified as file timestamp")
-          updatedMd5FileInfo.createUpdateTimestamp
-        } else {
-          updatedMd5FileInfo
+        val lastModifiedBeforeAttributeUpdateWasEqual = md5FileInfo.lastModified() == file.lastModified() // todo
+        doUpdate(md5FileInfo)
+        if (lastModifiedBeforeAttributeUpdateWasEqual && file.lastModified() != md5FileInfo.lastModified()) {
+          file.setLastModified(md5FileInfo.lastModified())
+          if (file.lastModified() != md5FileInfo.lastModified())
+            println("WARNING: Failed to set fileAttribute with same lastModified as file timestamp")
         }
       }
     }
+    md5FileInfo
   }
 }
 

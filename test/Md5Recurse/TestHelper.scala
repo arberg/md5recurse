@@ -88,7 +88,7 @@ trait TestHelper extends FlatSpec with Matchers {
       Md5Recurse.main(params)
     }
     val output = streamOut.toString
-    if (doEcho) println(output)
+    if (doEcho) print(output)
     output
   }
 
@@ -103,8 +103,8 @@ trait TestHelper extends FlatSpec with Matchers {
     }
     val output = streamOut.toString
     val error = streamErr.toString
-    if (doEcho) println(output)
-    if (doEcho) println(error)
+    if (doEcho) print(output)
+    if (doEcho) System.err.print(error)
     (output, error)
   }
 

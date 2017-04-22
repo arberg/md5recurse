@@ -38,6 +38,15 @@ class Md5RecurseTest extends FlatSpec with TestConfig with TestData {
     globalFile.lines()(Codec.UTF8).exists(s => s.contains("/.") || s.contains(File.separator + ".")) should be(false)
   }
 
+  "Md5Recurse .disabled_md5" should "not scane subdirs" in {
+    val testdir = Path.fromString(SRC_TEST_RES_DIR) / "disabled_md5"
+    assert(testdir.exists === true)
+    val globalFile = Path.fromString(TEST_EXECUTION_GLOBAL_DIR) / "_global.md5data"
+    globalFile.delete(true)
+    assert(globalFile.exists === false)
+    md5Recurse(Array("-q", "--globaldir", TEST_EXECUTION_GLOBAL_DIR, "-V", "3", testdir.path))
+    globalFile.lines().toList.size should be(0)
+  }
 
   "Md5Recurse file changed" should "update file attribute" in {
     val filename: String = "test-dummy.log"

@@ -44,7 +44,12 @@ object FileInfoBasic {
   }
 
   // Invariant: File is canonicalised
+  def create(lastModified: Long, file: File) = {
+    new FileInfoBasic(lastModified, file.length, file.getParentFile.getPath, file.getName)
+  }
+
+  // Invariant: File is canonicalised
   def create(file: File) = {
-    new FileInfoBasic(file.lastModified, file.length, file.getParentFile.getPath, file.getName)
+    new FileInfoBasic(file.lastModified(), file.length, file.getParentFile.getPath, file.getName)
   }
 }

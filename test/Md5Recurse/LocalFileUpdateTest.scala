@@ -78,24 +78,26 @@ class LocalFileUpdateTest extends FlatSpec with TestConfig with TestData {
       assertFilesContainExactlyOnce(MD5_NEW_CONTENT, localMd5FilePath)
 
       // Run again, but this time we expect that the local files are up2date so they should not be rewritten
-      Thread.sleep(1000)
-      // OS may have minimimum time measurement of 16 ms, so sleep a bit
-      val lastModifiedLocalMd5 = localMd5FilePath.lastModified
+      Thread.sleep(if (Sys.isWin) 100 else 1000)
+      // OS may have minimum time measurement of 16 ms, so sleep a bit, linux only has lastModified accuracy of 1s
+      val localMd5LastModified = localMd5FilePath.lastModified
       runMd5Recurse()
-      assert(localMd5FilePath.lastModified === lastModifiedLocalMd5, s"file $localMd5FileExtension should not have been updated, because content is the same")
+      assert(localMd5FilePath.lastModified === localMd5LastModified, s"file $localMd5FileExtension should not have been updated, because content is the same")
 
       // Run again, file still up2date, but this time with no attributes written
       deleteMd5FileAttributes(testDirPath)
       runMd5Recurse()
-//      localMd5FilePath.lines().foreach(println(_))
-      localMd5FilePath.lastModified should be(lastModifiedLocalMd5)
+      //      localMd5FilePath.lines().foreach(println(_))
+      localMd5FilePath.lastModified should be(localMd5LastModified)
 
       // Modify the local data file, so lines are not correctly sorted, and run again. File should still be up2date
-      val fileLinesReversed = localMd5FilePath.lines().toList.reverse
-      localMd5FilePath.writeStrings(fileLinesReversed, "\n")
-      val lastModified2 = localMd5FilePath.lastModified
+      val localMd5LinesBeforeReversal = localMd5FilePath.lines().toList
+      localMd5FilePath.writeStrings(localMd5FilePath.lines().toList.reverse, "\n")
+      val localMd5LinesAfterReversal = localMd5FilePath.lines().toList
       runMd5Recurse()
-      localMd5FilePath.lastModified should not be (lastModified2)
+      // Compare actual content instead of timestamps, because then we don't have to sleep to get another lastModified
+      localMd5FilePath.lines().toList should not be (localMd5LinesAfterReversal)
+      localMd5FilePath.lines().toList should be (localMd5LinesBeforeReversal)
 
       // Delete the source files and check that md5 file gets cleaned up
       filepath1.delete()
