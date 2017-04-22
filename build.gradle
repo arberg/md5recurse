@@ -30,5 +30,5 @@ dependencies {
 
 shadowJar {
     baseName = 'Md5Recurse'
-    applicationDefaultJvmArgs = ['-Xmx1024M']
+    applicationDefaultJvmArgs = ['-Xmx512M']
 }
