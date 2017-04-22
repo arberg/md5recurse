@@ -1,0 +1,32 @@
+apply plugin: 'scala'
+apply plugin: 'application'
+apply plugin: 'com.github.johnrengelman.shadow'
+
+buildscript {
+    repositories {
+        jcenter()
+    }
+    dependencies {
+        // http://jcenter.bintray.com/com/github/jengelman/gradle/plugins/shadow/
+        classpath 'com.github.jengelman.gradle.plugins:shadow:1.2.4'
+    }
+}
+repositories {
+    mavenCentral()
+}
+
+mainClassName = 'Md5Recurse.Md5Recurse'
+
+dependencies {
+    compile 'org.scala-lang:scala-library:2.11.8'
+    compile 'com.github.scala-incubator.io:scala-io-file_2.11:0.4.3-1'
+    // https://mvnrepository.com/artifact/com.sksamuel.scalax/scalax_2.11
+    compile group: 'com.sksamuel.scalax', name: 'scalax_2.11', version: '1.26.0'
+
+    testCompile 'org.scalatest:scalatest_2.11:3.0.0'
+}
+
+shadowJar {
+    baseName = 'Md5Recurse'
+    applicationDefaultJvmArgs = ['-Xmx1024M']
+}
