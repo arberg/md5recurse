@@ -167,9 +167,9 @@ class Md5OptionParser extends scopt.OptionParser[Config]("Md5Recurse") {
     if (x == "UTF-8-BOM") {
       c.copy(encoding = "UTF-8", encodingBom = true)
     } else {
-      c.copy(encoding = x)
+      c.copy(encoding = x, encodingBom = false)
     }
-  } text "the charset for the .md5 files for md5sum. This setting will not affect .md5data files. Encodings: UTF-8 (default), UTF-8-BOM (UTF-8 with BOM), ISO-8859-1 (see https://docs.oracle.com/javase/7/docs/api/java/nio/charset/Charset.html)".wordWrap(TEXT_WRAP, TEXT_INDENT)
+  } text "the charset for the .md5 files for md5sum. This setting will not affect .md5data files. Encodings: UTF-8 (default), UTF-8-BOM (UTF-8 with BOM), ISO-8859-1 (see https://docs.oracle.com/javase/7/docs/api/java/nio/charset/Charset.html). Note that many windows programs will need the UTF-8 with BOM to correctly parse files, while the linux md5sum program fails to parse the BOM character.".wordWrap(TEXT_WRAP, TEXT_INDENT)
 
   opt[Unit]("disable-file-attributes") action { (_, c) =>
     c.copy(useFileAttributes = false)
