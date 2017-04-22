@@ -16,15 +16,15 @@ MD5Recurse supports the following storage formats
 
 MD5Recurse is written in Scala, and thus runs in Java JVM. It is tested for Windows and Linux.
 
-UnRaid
+UnRaid Scripts
 ==========
 Additional scripts have been included for generating MD5 files on the UnRaid operating system. In UnRaid each file is located on one specific disk (named cache, disk1-diskN). UnRaid has a virtual folder called 'user' which contains the union of all files on the disks. 
 The script scans all disks separately and creates a global-md5data file for each disk. It also scans the virtual user folder and generates a global md5data file.
 
-# Usages
+### Usages
 * Should a disk fail the global-disk files can be used to verify a possible restore of the disk. 
 * Should a subfolder in the common user-folder be lost and later restored, then the global user-md5data can be used to verify the content of the restored folder.
 
-MD5 vs SHA-1
+MD5 vs SHA-1 Considerations
 ==========
 The tool only supports MD5, not other hashes such as SHA-1. There are known collissions in the MD5 checksum but not in the SHA-1 checksum. The rationale for using MD5 is the following. If a files content is altered for instance due to bitrot or bad restore then that change is to some extent random, it is not constructed by a human trying to subvert the security. Thus the probability that the new files MD5 checksum will be equal to the old checksum is roughly the probability that two random files have the same checksum. And that is not very likely to say the least, see [StackOverflow: How many random elements before MD5 produces collisions?](http://stackoverflow.com/questions/201705/how-many-random-elements-before-md5-produces-collisions).
