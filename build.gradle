@@ -23,6 +23,8 @@ dependencies {
     // https://mvnrepository.com/artifact/com.sksamuel.scalax/scalax_2.11
     compile group: 'com.sksamuel.scalax', name: 'scalax_2.11', version: '1.26.0'
 
+    // include junit for gradle test execution along with annotation @RunWith(classOf[JUnitRunner])
+    testCompile 'junit:junit:4.12'
     testCompile 'org.scalatest:scalatest_2.11:3.0.0'
 }
 

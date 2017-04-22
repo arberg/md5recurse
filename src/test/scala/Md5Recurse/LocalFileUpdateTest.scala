@@ -2,12 +2,15 @@ package Md5Recurse
 
 import java.io.File
 
+import org.junit.runner.RunWith
 import org.scalatest._
+import org.scalatest.junit.JUnitRunner
 
 import scalax.file.Path
 import scalax.io.Codec
 // http://jesseeichar.github.io/scala-io-doc/0.4.3/index.html#!/file/string_to_file
 
+@RunWith(classOf[JUnitRunner])
 class LocalFileUpdateTest extends FlatSpec with TestConfig with TestData {
 
   val MD5DATA_EXT = ".md5data"

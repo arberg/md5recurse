@@ -2,11 +2,14 @@ package Md5Recurse
 
 import java.io.File
 
+import org.junit.runner.RunWith
 import org.scalatest._
+import org.scalatest.junit.JUnitRunner
 
 import scalax.file.Path
 import scalax.io.Codec
 
+@RunWith(classOf[JUnitRunner])
 class Md5RecurseTest extends FlatSpec with TestConfig with TestData {
 
   "Md5Recurse find missing files from global" should "print missing file (test both relative and absolute path)" in {
