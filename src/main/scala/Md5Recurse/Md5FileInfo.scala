@@ -47,8 +47,9 @@ object Md5FileInfo {
     new Md5FileInfo(FileInfoBasic.create(lastModified, file), md5, isBinary)
   }
 
-  // Keep regexp as field, because of performance
-  val md5DataLineRegExp = """([0-9a-f]+)\s([01])\s([-]?\d+)\s(\d+)\s(.*)""".r
+  // Keep regexp as field, because of performance though it uses 20-30% more memory but takes 30% less time
+  val md5DataLineRegExp =
+    """([0-9a-f]+)\s([01])\s([-]?\d+)\s(\d+)\s(.*)""".r
 
   def parseMd5DataLine(dir: String, dataLine: String) = {
     // lastMod will be negative if file dated before 1970.
@@ -59,14 +60,13 @@ object Md5FileInfo {
     new Md5FileInfo(new FileInfoBasic(lastMod.toLong, size.toLong, dir, filename), md5, isBinary)
   }
 
+  val md5DataLineFileAttributeRegExp = """([0-9a-f]+)\s([01])\s([-]?\d+)\s(\d+)""".r
+
   @throws(classOf[ParseException])
   def parseMd5FileAttribute(file: File, dataLine: String) = {
     // lastMod will be negative if file dated before 1970.
-    val timestampRegex =
-      """([0-9a-f]+)\s([01])\s([-]?\d+)\s(\d+)""".r
     val (md5, lastMod, size, isBinary) = dataLine match {
-      case timestampRegex(md5, b, lastMod, size) =>
-        (md5, lastMod, size, b == "1")
+      case md5DataLineFileAttributeRegExp(md5, b, lastMod, size) => (md5, lastMod, size, b == "1")
       case _ => {
         throw new ParseException(file.getCanonicalPath + ": File attribute content corrupt: '" + dataLine + " ' ")
       }
@@ -154,6 +154,7 @@ object Md5FileInfo {
   def updateMd5FileAttribute(file: File, md5FileInfo: Md5FileInfo): Md5FileInfo = {
     updateMd5FileAttribute(file, md5FileInfo, false)
   }
+
   def updateMd5FileAttribute(file: File, md5FileInfo: Md5FileInfo, isFileAlreadyLocked: Boolean): Md5FileInfo = {
     val attrView: UserDefinedFileAttributeView = FileUtil.attrView(file)
     val oldAttr = FileUtil.getAttr(attrView, Md5FileInfo.ATTR_MD5RECURSE)

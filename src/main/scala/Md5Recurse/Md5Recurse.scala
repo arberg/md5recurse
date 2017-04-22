@@ -544,7 +544,6 @@ object Md5Recurse {
   }
 
   def printDirsOutsideScope(dataFileUpdater: DataFileUpdater, fileSet: DirToFileMap[Md5FileInfo], configSrcDirs: Iterable[File]) {
-    val config = Config.it
     for (
       prevMapDir <- fileSet.map
       if !configSrcDirs.exists({
@@ -667,7 +666,8 @@ object Md5Recurse {
               }
             }
           }
-          Timer("Md5Recurse" + config.md5FilePrefix, config.logPerformance) {
+          def paren(str:String) = if (str.isEmpty) "" else s" ($str)"
+          Timer("Md5Recurse" + paren(config.md5FilePrefix), config.logPerformance) {
             () => execute(config)
           }
         }
