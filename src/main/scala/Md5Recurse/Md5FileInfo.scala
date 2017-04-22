@@ -47,16 +47,16 @@ object Md5FileInfo {
     new Md5FileInfo(FileInfoBasic.create(lastModified, file), md5, isBinary)
   }
 
+  // Keep regexp as field, because of performance
+  val md5DataLineRegExp = """([0-9a-f]+)\s([01])\s([-]?\d+)\s(\d+)\s(.*)""".r
+
   def parseMd5DataLine(dir: String, dataLine: String) = {
     // lastMod will be negative if file dated before 1970.
-    val timestampRegex =
-      """([0-9a-f]+)\s([01])\s([-]?\d+)\s(\d+)\s(.*)""".r
-    val (md5, lastMod, size, isBinary, f) = dataLine match {
-      case timestampRegex(md5, b, lastMod, size, f) =>
-        (md5, lastMod, size, b == "1", f)
+    val (md5, lastMod: String, size, isBinary, filename) = dataLine match {
+      case md5DataLineRegExp(md5, b, lastMod, size, f) => (md5, lastMod, size, b == "1", f)
       case _ => throw new RuntimeException(dataLine + "\n line did not match timestamp-expression")
     }
-    new Md5FileInfo(new FileInfoBasic(lastMod.toLong, size.toLong, dir, f), md5, isBinary)
+    new Md5FileInfo(new FileInfoBasic(lastMod.toLong, size.toLong, dir, filename), md5, isBinary)
   }
 
   @throws(classOf[ParseException])
@@ -120,13 +120,16 @@ object Md5FileInfo {
       val source = Source.fromFile(md5dataFile, encoding)
       for (line <- source.getLines) {
         lastLine = line
-        if (line.startsWith("+")) { // I don't think I ever write this, to be removed
+        if (line.startsWith("+")) {
+          // Unused: I don't think I ever write this, to be removed
           prefixDir = line.substring(1)
         } else if (line.startsWith(">")) {
+          // New directory
           dirToFileMap.setDir(currentDir, fileMap)
           currentDir = prefixDir + line.substring(1)
           fileMap = dirToFileMap.getOrCreateDir(new File(currentDir))
         } else {
+          // New file
           try {
             val fileInfo = Md5FileInfo.parseMd5DataLine(currentDir, line)
             fileMap += (fileInfo.fileName() -> fileInfo)
