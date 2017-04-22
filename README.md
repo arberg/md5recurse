@@ -1,4 +1,26 @@
-TODO
+MD5Recurse
 ==========
-1) 
-2) 
+A tool for generating MD5 checksums recursively for all files in a set of folders. It can
+
+* generate MD5 checksums for all files, 
+* or just update for files with newer lastModified timestamps since last scan,
+* and check whether checksums are valid for all files with unchanged lastModified timestamps.
+
+It can write MD5 checksums to a global text-file which is sorted alphabetically by filename and folder and thus enabled manual text-comparisons in order to check of which checksums and last modification timestamps differ.
+
+MD5Recurse supports the following storage formats
+* Local md5data text file per directory (in MD5Recurse own format)
+* Local md5sum text file per directory (in md5sum format) - MD5Recurse only writes these files, it does not support reading the files for checksums
+* Global md5data text files
+* custom file attributes where the checksum and last modified timestamp is written to each file separately. Such attributes are preserved with file-rename and internal filesystem move, but not always when files are copied.
+
+MD5Recurse is written in Scala, and thus runs in Java JVM. It is tested for Windows and Linux.
+
+UnRaid
+==========
+Additional scripts have been included for generating MD5 files on the UnRaid operating system. In UnRaid each file is located on one specific disk (named cache, disk1-diskN). UnRaid has a virtual folder called 'user' which contains the union of all files on the disks. 
+The script scans all disks separately and creates a global-md5data file for each disk. It also scans the virtual user folder and generates a global md5data file.
+
+# Usages
+* Should a disk fail the global-disk files can be used to verify a possible restore of the disk. 
+* Should a subfolder in the common user-folder be lost and later restored, then the global user-md5data can be used to verify the content of the restored folder.
