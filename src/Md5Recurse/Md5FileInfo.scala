@@ -27,14 +27,20 @@ object Md5FileInfo {
 
   // read file and generate md5sum
   def readFileGenerateMd5Sum(file: File, updateFileAttribute: Boolean): Option[Md5FileInfo] = {
-    val lastModified = file.lastModified() // Read last modified before scanning file, in case file changes during scan, we could also lock file, but that seems unnecessary and would cause some reads to fail
-    val md5 = Md5Recurse.md5Sum(file.getPath)
-    if (md5.isDefined) {
-      val md5FileInfo: Md5FileInfo = create(file, lastModified, md5.get.md5, md5.get.isBinary)
-      val md5FileInfoUpdated = if (updateFileAttribute) Md5FileInfo.updateMd5FileAttribute(file, md5FileInfo) else md5FileInfo
-      Some(md5FileInfoUpdated)
+    val defaultAnswer: Option[Md5FileInfo] = None
+    FileUtil.doWithLockedFile(file, defaultAnswer) {
+      () => {
+        ExecutionLog.current.readFileAndGeneratedMd5 = true
+        val lastModified = file.lastModified() // Read last modified before scanning file, in case file changes during scan, we could also lock file, but that seems unnecessary and would cause some reads to fail
+        val md5 = Md5Recurse.md5Sum(file.getPath)
+        if (md5.isDefined) {
+          val md5FileInfo: Md5FileInfo = create(file, lastModified, md5.get.md5, md5.get.isBinary)
+          val md5FileInfoUpdated = if (updateFileAttribute) Md5FileInfo.updateMd5FileAttribute(file, md5FileInfo, true) else md5FileInfo
+          Some(md5FileInfoUpdated)
+        }
+        else None
+      }
     }
-    else None
   }
 
   def create(file: File, lastModified: Long, md5: String, isBinary: Boolean) = {
@@ -141,7 +147,11 @@ object Md5FileInfo {
     dirToFileMap
   }
 
+
   def updateMd5FileAttribute(file: File, md5FileInfo: Md5FileInfo): Md5FileInfo = {
+    updateMd5FileAttribute(file, md5FileInfo, false)
+  }
+  def updateMd5FileAttribute(file: File, md5FileInfo: Md5FileInfo, isFileAlreadyLocked: Boolean): Md5FileInfo = {
     val attrView: UserDefinedFileAttributeView = FileUtil.attrView(file)
     val oldAttr = FileUtil.getAttr(attrView, Md5FileInfo.ATTR_MD5RECURSE)
 
@@ -157,17 +167,16 @@ object Md5FileInfo {
 
     // Lock the file so others cannot write file, while we read it to generate MD5 and then write fileAttribute
     // We don't need the lock on linux, unless the filesystem is mounted NTFS I think. Its probably filesystem dependent not OS dependent.
-    FileUtil.doWithLockedFile(file) {
-      () => {
-        val lastModifiedBeforeAttributeUpdateWasEqual = md5FileInfo.lastModified() == file.lastModified() // todo
-        doUpdate(md5FileInfo)
-        if (lastModifiedBeforeAttributeUpdateWasEqual && file.lastModified() != md5FileInfo.lastModified()) {
-          file.setLastModified(md5FileInfo.lastModified())
-          if (file.lastModified() != md5FileInfo.lastModified())
-            println("WARNING: Failed to set fileAttribute with same lastModified as file timestamp")
-        }
+    val updateAttributeFunction = () => {
+      val lastModifiedBeforeAttributeUpdateWasEqual = md5FileInfo.lastModified() == file.lastModified() // todo
+      doUpdate(md5FileInfo)
+      if (lastModifiedBeforeAttributeUpdateWasEqual && file.lastModified() != md5FileInfo.lastModified()) {
+        file.setLastModified(md5FileInfo.lastModified())
+        if (file.lastModified() != md5FileInfo.lastModified())
+          println("WARNING: Failed to set fileAttribute with same lastModified as file timestamp")
       }
     }
+    if (isFileAlreadyLocked) updateAttributeFunction.apply() else FileUtil.doWithLockedFile(file)(updateAttributeFunction)
     md5FileInfo
   }
 }

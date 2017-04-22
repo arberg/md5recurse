@@ -16,6 +16,15 @@ import scala.collection.mutable.MutableList
 import scalax.file.Path
 import scalax.io.Codec
 
+// We keep an execution log so our tests can monitor what the program did, when it is difficult to determine by seeing output
+object ExecutionLog {
+  var current = new ExecutionLog
+}
+
+class ExecutionLog {
+  var readFileAndGeneratedMd5 = false
+}
+
 object Sys {
   val OS = System.getProperty("os.name")
   val isWin = OS.startsWith("Windows")
@@ -172,11 +181,11 @@ class Md5OptionParser extends scopt.OptionParser[Config]("Md5Recurse") {
 
   def verboseCopy(c: Config, level: Int) =
     c.copy(
-      logMd5Scans = level >= 1,
-      logPerformance = level >= 2,
-      logMd5ScansAndSkipped = level >= 3,
-      logMd5ScansSkippedAndLocalAndAttributeReads = level >= 4,
-      logMd5ScansSkippedAndPrintDetails = level >= 5
+      logMd5Scans = level % 10 >= 1,
+      logMd5ScansAndSkipped = level % 10 >= 2,
+      logMd5ScansSkippedAndLocalAndAttributeReads = level % 10 >= 3,
+      logMd5ScansSkippedAndPrintDetails = level % 10 >= 4,
+      logPerformance = level >= 10
     )
 
   opt[Unit]('v', "verbose") action { (_, c) =>
@@ -185,7 +194,7 @@ class Md5OptionParser extends scopt.OptionParser[Config]("Md5Recurse") {
 
   opt[Int]('V', "verboselevel") valueName "<level>" action { (x, c) =>
     verboseCopy(c, x)
-  } text "set verbose level 0: none (default), 1: print files being read for md5sum, 2: print all files, 3: even more".wordWrap(TEXT_WRAP, TEXT_INDENT)
+  } text "set verbose level 0: none (default), 1: print files being read for md5sum, 2: print all files, 3: even more, with +10 log performance (ie. 12 means performance+print all files)".wordWrap(TEXT_WRAP, TEXT_INDENT)
 
   opt[Unit]('q', "quiet") action { (_, c) =>
     c.copy(quiet = true)
@@ -247,14 +256,16 @@ object Md5Recurse {
         // Map tho outObjects to outlines. Also append to first line the UTF-8 BOM character if enabled.
         val outLines: Seq[String] = outObjects.zipWithIndex.map { case (o, i: Int) => (if (i == 0 && writeBOM) "\uFEFF" else "") + proc(o) }
         val path = Path.fromString(file.getPath)
+
         // Don't sort the read lines, because if user manually edited file it does not hurt rewriting file. If user didn't edit file, it will have identical sorting
-        def equals[T] (list1:T, list2:T) = {
+        def equals[T](list1: T, list2: T) = {
           val equals = list1 == list2
           if (equals) {
             if (Config.it.logMd5ScansAndSkipped) println("Identical local file " + file)
           }
           equals
         }
+
         if (!path.exists || !equals(outLines, path.lines().toList)) {
           if (Config.it.logMd5ScansAndSkipped) println("Updating local file " + file)
           try {
@@ -363,6 +374,7 @@ object Md5Recurse {
     else
       val1
   }
+
   def verifyAndGenerateMd5NonRecursive(dir: File, files: List[File], globalDirSet: Option[Map[String, Md5FileInfo]]): (List[Md5FileInfo], List[Md5FileInfo], List[String]) = {
     val config = Config.it
     //    if (config.verbose >= 2) print("Dir: " + dir)
@@ -622,6 +634,7 @@ object Md5Recurse {
   }
 
   def main(args: Array[String]): Unit = {
+    ExecutionLog.current = new ExecutionLog
     val parser = new Md5OptionParser // parser.parse returns Option[C]
     parser.parse(args, Config()) map {
       config =>

@@ -14,7 +14,7 @@ class LocalFileUpdateTest extends FlatSpec with TestConfig with TestData {
   val MD5SUM_EXT = ".md5"
 
   "Timer" should "perfomance files" in {
-    if (false ) {
+    if (false) {
       val testDirPath = copyTestResources / "onlyTwoFiles"
       val file = new File(testDirPath.path)
 
@@ -44,7 +44,7 @@ class LocalFileUpdateTest extends FlatSpec with TestConfig with TestData {
       doPeformanceRun(() => for (i <- 1 to innerLoops) file.getCanonicalFile.getCanonicalFile.getCanonicalFile.getCanonicalPath, "CanonicalFile.CanonicalPath")
     }
   }
-  
+
   "Local file" should "only be updated if changes exists" in {
     def testLocalFileWrittenAndNotUpdated(localMd5FileExtension: String, md5ToolParam: Array[String]) {
       println(s"Working on extension: $localMd5FileExtension")
@@ -97,7 +97,7 @@ class LocalFileUpdateTest extends FlatSpec with TestConfig with TestData {
       runMd5Recurse()
       // Compare actual content instead of timestamps, because then we don't have to sleep to get another lastModified
       localMd5FilePath.lines().toList should not be (localMd5LinesAfterReversal)
-      localMd5FilePath.lines().toList should be (localMd5LinesBeforeReversal)
+      localMd5FilePath.lines().toList should be(localMd5LinesBeforeReversal)
 
       // Delete the source files and check that md5 file gets cleaned up
       filepath1.delete()
@@ -189,6 +189,29 @@ class LocalFileUpdateTest extends FlatSpec with TestConfig with TestData {
     repeatTest(Array("-V", "1", filepath.path))
     repeatTest(Array("-g", testDirPath.path, filepath.path))
     repeatTest(Array("-V", "1", "--enableLocalMd5Data", filepath.path))
+  }
+
+  "With enabled fileAttributes" should "a renamed file should not be rescanned" in {
+    val testDirPath = copyTestResources
+    val filepath = testDirPath / "dummy1.log"
+    val newFilepath = testDirPath / "dummy1Renamed.log"
+    filepath.exists should be(true)
+
+    val commonParams = Array("-V", "2")
+
+    def execute(p: Path) {
+      Md5Recurse.main(commonParams ++ Array(p.path))
+      println
+    }
+
+    execute(filepath)
+    ExecutionLog.current.readFileAndGeneratedMd5 should be(true)
+    execute(filepath)
+    ExecutionLog.current.readFileAndGeneratedMd5 should be(false)
+    println(getAttr(filepath) + "\n")
+    filepath.moveTo(newFilepath)
+    execute(newFilepath)
+    ExecutionLog.current.readFileAndGeneratedMd5 should be(false)
   }
 
   "Local file" should "honor specified encoding" in {
