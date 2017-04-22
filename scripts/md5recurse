@@ -1,18 +1,20 @@
 #!/bin/bash
-#SCALA=/mnt/cache/app/scala/bin/scala
-JAVA_HOME=/mnt/cache/app/java/jre
-#CLASSPATH=/mnt/cache/app/source/classes
 
 if [ "$1" == "" ] ; then
-	scala -J-Xmx1024M /boot/bin/scala/Md5Recurse.jar
 	echo "Examples:"
-	echo "  sudo md5recurse --globaldir /mnt/user/md5 -p disk1 /mnt/disk1"
-	echo "  md5recurse --enableLocalMd5Data --enableLocalMd5Sum -p user ."
-	echo "  md5recurse --print ."	
+	echo "  Scan disk1 "
+	echo "    sudo md5recurse --globaldir /mnt/user/md5 -p disk1 /mnt/disk1"
+	echo "  After disk failure: Find missing files (disable local and file attributes, enable global)"
+	echo "    sudo md5recurse --globaldir /mnt/user/md5 --disable-file-attributes --onlyPrintMissing -p disk1 /mnt/disk1"
+	echo "  After disk failure: Check MD5  (disable local and file attributes, enable global)"
+	echo "    sudo md5recurse --globaldir /mnt/user/md5 --disable-file-attributes --check -p disk1 /mnt/disk1"
+	echo "  Check md5's of current dir "
+	echo "    md5recurse --enableLocalMd5Data --enableLocalMd5Sum --check -p user ."
+	echo "  Print md5's to stdout similar to md5sum"
+	echo "    md5recurse --print ."	
 	echo
 	exit 1
 fi
 
-#echo "Running: scala -J-Xmx1024M $DEBUG /boot/bin/scala/Md5Recurse.jar -e UTF-8-BOM $@"
-scala -J-Xmx1024M $DEBUG /boot/bin/scala/Md5Recurse.jar -e UTF-8-BOM "$@"
+/boot/app/md5recurse/bin/md5recurse -e UTF-8-BOM "$@"
 

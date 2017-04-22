@@ -4,8 +4,8 @@
 source $(dirname "$0")/md5recurse_unraid.cfg
 source $(dirname "$0")/java.cfg
 
-if [ ! -f "$MD5RECURSE_JAR" ] ; then
-	echo "ERROR missing Md5Recurse.jar, please check md5recurse_unraid.cfg: MD5RECURSE_JAR=$MD5RECURSE_JAR"
+if [ ! -f "$MD5RECURSE_BIN/md5recurse" ] ; then
+	echo "ERROR missing md5recurse install, please check md5recurse_unraid.cfg: MD5RECURSE_BIN=$MD5RECURSE_BIN"
 	exit 1
 fi
 
@@ -64,46 +64,82 @@ cleanLocalDirMd5FilesWhichHaveBeenMovedBetweenDisks() {
 }
 
 execMd5recurse() {
-	# -Xmx sets upper limit on memory available, it will only use so much if needed. If not using --enableReadGlobalMd5 or --global then 256M is enough. JAVA_OPTS is read by scala command.
-	JAVA_HOME="$JAVA_HOME" $JAVA_HOME/bin/java -Xmx1024M $DEBUG -jar ${MD5RECURSE_JAR} "$@"
-
-    # Command to execute jar using scala directly, no longer needed as scala is now included in jar
-	#JAVA_HOME="$JAVA_HOME" ${SCALA_PATH}/scala -J-Xmx1024M ${MD5RECURSE_JAR} "$@"
+	# Memory option: -Xmx1024M sets upper limit on memory available, it will only use so much if needed. If not using --enableReadGlobalMd5 or --global then 256M is enough. JAVA_OPTS is read by scala command.
+	${MD5RECURSE_BIN}/md5recurse "$@"
 }
 
+log() {
+	[ "$LOG" != "" ] && echo "$(date "+%Y.%m.%d %H:%M") $1" >> ${LOG}
+	echo "$1"
+}
 
+exitWithEcho() { 
+  echo $1
+  exit 1
+}
+
+pidCheck() { 
+  PID_FILE=$1
+  # name for warning error message
+  NAME=$2
+
+  # If a previous invokation of this script is already running, exit
+  procesName=$(basename "$0")
+  if [ -z "$2" ] ; then
+  	NAME="$procesName"
+  fi
+
+  if [ -f $PID_FILE ]; then
+    old_pid=$(cat $PID_FILE)
+    if ps h "${old_pid}" | /usr/bin/grep "$procesName" ; then
+        log "${NAME} already running - exiting (arguments=$*)" 
+        exit 0
+    else 
+        log "${NAME}: Old pid found with ${old_pid} but process does not exist. Starting anyway, my pid is $$"
+    fi
+  fi
+
+  echo $$ > $PID_FILE || exitWithEcho "Error: Unable to write to $PID_FILE file, running as root?"
+  chmod a+r $PID_FILE
+  
+  if [ "$(cat $PID_FILE)" != "$$" ]; then
+    log "WARNING: Write PID failed - write proteced storage or no more space or multiple concurrent movers started?"
+    exit 0;
+  fi
+}
 
 
 trap killGroup INT
 
-PID=/var/run/md5_array.pid
-# If a previous invokation of this script is already running, exit
-if [ -f $PID ]; then
-  if ps h `cat $PID` | grep `basename $0` ; then
-      echo "md5_array already running"
-      exit 0
-  fi
-fi
+PID=/var/run/md5recurse_unraid.pid
+pidCheck $PID
 
 if [ "$USER" != "root" ]
 then
-  echo "WARNING: Not running as root"
+  echo "WARNING: Not running as root (probably cannot write pid file)"
   # echo "ERROR: Run as root"
   # exit 1
 fi  
 
+GLOBAL_MD5_DATA_FILES_GLOB_EXCLUDING_FINAL_MD5="$MD5_GLOBAL_DIR/disk*_global.md5data $MD5_GLOBAL_DIR/user_global.md5data $MD5_GLOBAL_DIR/cache_global.md5data"
+GLOBAL_MD5_DATA_FILES_GLOB="$MD5_GLOBAL_DIR/disk*_global.md5data $MD5_GLOBAL_DIR/user_global.md5data $MD5_GLOBAL_DIR/cache_global.md5data $MD5_GLOBAL_DIR/md5data.md5"
 
 ##########################################################################
 ########### backup current to archive                          ###########
 ##########################################################################
 
-if [ "$ENABLE_GLOBAL_MD5_FILES" == "1" ] ; then
-	DATETIME=`date +%Y-%m-%d_%H%M` 
-	ARCHIVE_DIR=$MD5_GLOBAL_DIR/${ARCHIVE_PREFIX}${DATETIME}
+function backupToArchive() {
+	ARCHIVE_DIR=$MD5_GLOBAL_DIR/$1
 	mkdir_perm $ARCHIVE_DIR
-	cp $MD5_GLOBAL_DIR/disk*.md5data $MD5_GLOBAL_DIR/md5data.md5 $ARCHIVE_DIR
-	# remove again if in case of first backup
+	# dev/null because it gives warning when files are not there
+	cp -f $GLOBAL_MD5_DATA_FILES_GLOB $ARCHIVE_DIR 2> /dev/null
+	# remove again we didn't copy any files to archive, in case of first backup
 	find $ARCHIVE_DIR -type d -empty -maxdepth 0 -delete
+}
+
+if [ "$ENABLE_GLOBAL_MD5_FILES" == "1" ] ; then
+	backupToArchive ${ARCHIVE_PREFIX_DAILY}$(date +%Y-%m-%d_%H%M)
+	backupToArchive ${ARCHIVE_PREFIX_WEEKLY}$(date +%Y-w%W)
 fi
 
 ####################################################################################
@@ -127,7 +163,22 @@ for SCAN_DIR in /mnt/disk* /mnt/cache; do
 done
 wait 
 
-execMd5recurse -p "user" $OPTIONS /mnt/user
+# Concatenate global files into user_global.md5data
+if [ "$ENABLE_GLOBAL_MD5_FILES" == "1" ] ; then
+	TMP_MD5_FILE=${MD5_GLOBAL_DIR}/user_global_temp.md5data
+	[ -f $TMP_MD5_FILE ] && rm ${TMP_MD5_FILE}
+	for SCAN_DIR in /mnt/disk* /mnt/cache; do
+		DISK=$(basename $SCAN_DIR)
+		globalFile="${MD5_GLOBAL_DIR}/${DISK}_global.md5data"
+		# For debugging: Remove & to make it easier to break and kill for-loop process
+		if [ -f  ] ; then
+			cat ${globalFile} | sed "s|^>/mnt/${DISK}/|>/mnt/user/|" >> ${TMP_MD5_FILE} 
+		fi 
+	done
+	mv ${TMP_MD5_FILE} ${MD5_GLOBAL_DIR}/user_global.md5data
+fi
+
+execMd5recurse -p user $OPTIONS /mnt/user
 
 cleanLocalDirMd5FilesWhichHaveBeenMovedBetweenDisks
 
@@ -136,29 +187,30 @@ cleanLocalDirMd5FilesWhichHaveBeenMovedBetweenDisks
 ##########################################################################
 
 if [ "$ENABLE_GLOBAL_MD5_FILES" == "1" ] ; then
-	GLOBAL_MD5_FILE_PREFIX_1="_global.md5data"
-	GLOBAL_MD5_FILE_PREFIX="*_global.md5data"
-
+	# Goto dir to get md5sum to generate file without directory prefix
 	pushd ${MD5_GLOBAL_DIR} > /dev/null
-	md5sum -b ${GLOBAL_MD5_FILE_PREFIX} > md5data.md5
+	md5sum -b ${GLOBAL_MD5_DATA_FILES_GLOB_EXCLUDING_FINAL_MD5} > md5data.md5
 	popd > /dev/null
 
+	# Copy to backup-disks which are located on unRaid as a subdir in usershare but with forced selected disk
 	for DISKNAME in ${MD5_GLOBAL_BACKUP_DISKS}  ; do
 		# For debugging: Remove & to make it easier to break and kill for-loop process
 		DISK=$(basename $DISKNAME)
 		BACKUP_DISK_DIR=/mnt/${DISK}/${MD5_GLOBAL_SHARE}/${PREFIX_FOR_BACKUP_FOLDER}${DISK}
 		mkdir_perm ${BACKUP_DISK_DIR}
-		cp -p ${MD5_GLOBAL_DIR}/${GLOBAL_MD5_FILE_PREFIX} ${MD5_GLOBAL_DIR}/md5data.md5 ${BACKUP_DISK_DIR}
+		cp -p ${GLOBAL_MD5_DATA_FILES_GLOB} ${BACKUP_DISK_DIR}
 	done
 
 	# Warning: This is actually a bit dangerous if we do rm -rf. Am I sure the print does not contain a badly excaped slash, causing be to delete root? pushd necessary or delete runs in wrong dir. Hence move to recyclebin, which can be autocleaned elsewhere on monthly basis or similar
 	pushd $MD5_GLOBAL_DIR  > /dev/null
 	[ ! -d .Recycle.Bin ] && mkdir .Recycle.Bin
-	find $MD5_GLOBAL_DIR -name "${ARCHIVE_PREFIX}*" -type d -maxdepth 1 | sort -r | awk '{i=i+1; if(i>3)print }' | xargs -L 1 -I {} mv {} .Recycle.Bin
+	# WARNING: This program is running as root, so I'm reluctant to call 'rm' here without having a prefix that ensures me I'm deleting within the desired directory. Consider wiping .Recycle.Bin if delete is desired
+	# Instead of delete, move to recycle bin with this: xargs -L 1 -I {} mv {} .Recycle.Bin
+	find $MD5_GLOBAL_DIR -name "${ARCHIVE_PREFIX_DAILY}*" -type d -maxdepth 1 | sort -r | awk '{i=i+1; if(i>3)print }' | xargs -L 1 -I {} mv {} .Recycle.Bin
+	find $MD5_GLOBAL_DIR -name "${ARCHIVE_PREFIX_WEEKLY}*" -type d -maxdepth 1 | sort -r | awk '{i=i+1; if(i>3)print }' | xargs -L 1 -I {} mv {} .Recycle.Bin
 	popd > /dev/null
-
-	DATE=$(date "+%Y.%m.%d")
-	echo "$DATE Finished, executed with options '${OPTIONS}'" >> ${MD5_GLOBAL_DIR}/md5recurse_unraid.log
 fi
 
-[ "$LOG" != "" ] && echo "$DATE Finished, executed with options '${OPTIONS}'" >> ${LOG}
+log "Finished: Executed with options '${OPTIONS}'"
+
+rm $PID

@@ -28,3 +28,13 @@ The script scans all disks separately and creates a global-md5data file for each
 MD5 vs SHA-1 Considerations
 ==========
 The tool only supports MD5, not other hashes such as SHA-1. There are known collissions in the MD5 checksum but not in the SHA-1 checksum. The rationale for using MD5 is the following. If a files content is altered for instance due to bitrot or bad restore then that change is to some extent random, it is not constructed by a human trying to subvert the security. Thus the probability that the new files MD5 checksum will be equal to the old checksum is roughly the probability that two random files have the same checksum. And that is not very likely to say the least, see [StackOverflow: How many random elements before MD5 produces collisions?](http://stackoverflow.com/questions/201705/how-many-random-elements-before-md5-produces-collisions).
+
+Runtime Environment
+==========
+The Md5Recurse programs needs Java 1.8 or newer installed, and probably JAVA_HOME defined in the environment. 
+
+Build
+==========
+The projects is built with gradle. Run `gradle build`.
+
+The project can be imported into IntelliJ.
