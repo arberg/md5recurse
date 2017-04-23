@@ -30,5 +30,6 @@ dependencies {
 
 shadowJar {
     baseName = 'Md5Recurse'
-    applicationDefaultJvmArgs = ['-Xmx512M']
+    // The default 256MB is just enough for a global file of size 110MB, but 240MB is too little.
+    applicationDefaultJvmArgs = ['-Xmx384M']
 }

@@ -16,12 +16,6 @@ class LocalFileUpdateTest extends FlatSpec with TestConfig with TestData {
   val MD5DATA_EXT = ".md5data"
   val MD5SUM_EXT = ".md5"
 
-//  "user_global temp" should "perfomance" in {
-//    Timer("user_global", true) {
-//      () => Md5Recurse.main(Array("-g", "build", "-p", "user", "build/tmp"))
-//    }
-//  }
-
   "Timer" should "performance files" in {
     if (false) {
       val testDirPath = copyTestResources / "onlyTwoFiles"
@@ -134,8 +128,7 @@ class LocalFileUpdateTest extends FlatSpec with TestConfig with TestData {
     val (_, errorNoStorage) = md5RecurseGetOutputAndError(Array("--disable-file-attributes", filepath.path))
     errorNoStorage should include("Error: Please choose storage to read from (--disableReadGlobalMd5 requires --enableLocalMd5Data)")
 
-    // todo don't write filename in fileattributes
-    setMd5FileAttributes(filepath, "dddddddddddddddddddddddddddddddd 1 1492717460 200 dummy1.log")
+    setMd5FileAttributes(filepath, "dddddddddddddddddddddddddddddddd 1 1492717460 200")
     Md5Recurse.main(Array("--disable-file-attributes", "--enableLocalMd5Data", filepath.path))
     validateAttr(filepath, "dddddddddddddddddddddddddddddddd") // File attribute should still contain our dummy value
     localMd5FilePath.exists should be(true)

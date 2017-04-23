@@ -514,18 +514,18 @@ object Md5Recurse {
     }
 
     def updateFilesIncludePendingChanges(dir: String, originalGlobalFileListMap: FileListOrMap): Unit = {
-      originalGlobalFileListMap.fillMap(dir) // todo perhaps write lines directly
+      originalGlobalFileListMap.fillMap(dir)
       val orgMap = originalGlobalFileListMap.map
       val fileMapperOption: Option[Map[String, Md5FileInfo]] = pendingMd5sMap.removeDir(dir)
       // map ++ has new md5s on the right so it overwrites old values
       val updatedFileMap = if (fileMapperOption.isDefined) orgMap ++ fileMapperOption.get else orgMap
-      val md5s = updatedFileMap.values.toList
-      val sortedMd5s = if (fileMapperOption.isDefined) sort(md5s) else md5s
+      // Always sort because the global file may be the concatenation of other md5data global files done my user (UnRaid scripts)
+      val sortedMd5s = sort(updatedFileMap.values.toList)
       val dirFile = new File(dir)
       globalWriter.write(dirFile, sortedMd5s, false)
       // Only update local files if there are changes
       if (fileMapperOption.isDefined)
-        writeBothMd5Files(dirFile, md5s)
+        writeBothMd5Files(dirFile, sortedMd5s)
     }
 
     /**

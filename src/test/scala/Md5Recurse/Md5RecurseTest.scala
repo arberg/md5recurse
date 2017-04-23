@@ -2,7 +2,9 @@ package Md5Recurse
 
 import java.io.File
 
+import org.junit.runner.RunWith
 import org.scalatest._
+import org.scalatest.junit.JUnitRunner
 
 import scala.collection.immutable
 import scala.collection.mutable.ListBuffer
@@ -10,7 +12,7 @@ import scala.util.Random
 import scalax.file.Path
 import scalax.io.Codec
 
-//@RunWith(classOf[JUnitRunner])
+@RunWith(classOf[JUnitRunner])
 class Md5RecurseTest extends FlatSpec with TestConfig with TestData {
 
   class CommonInvoker(commonParams: Array[String]) {
