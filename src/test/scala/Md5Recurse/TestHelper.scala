@@ -111,4 +111,7 @@ trait TestHelper extends FlatSpec with Matchers {
   def md5Recurse(params: Array[String]) {
     Md5Recurse.main(params)
   }
+  def md5Recurse(param: String) {
+    Md5Recurse.main(Array(param))
+  }
 }

@@ -223,7 +223,6 @@ object Md5Recurse {
     MessageDigest.getInstance("MD5").digest(s.getBytes)
   }
 
-  // TODO md5sum fails on windows with files containing {}. It works if filecontent piped into md5sum.
   // read file and generate md5sum
   def md5Sum(workingDir: String, path: String): Option[Md5SumInfo] = {
     val filepath = if (new File(path).isAbsolute) path else workingDir + "/" + path

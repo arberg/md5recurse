@@ -112,6 +112,15 @@ class Md5RecurseTest extends FlatSpec with TestConfig with TestData {
     output2 should include ("Skipped") // Check we scanned files
   }
 
+  "Md5Recurse scan" should "work with filesnames with {}()" in {
+    val testDir = copyTestResources
+    val testFile = testDir / "mytest({})"
+    getAttr(testFile) should be(None)
+    md5Recurse(testFile.path)
+    assert(ExecutionLog.current.readFileAndGeneratedMd5 == true)
+    getAttr(testFile) should be(Some("541c57960bb997942655d14e3b9607f9 1 1492944908355 3"))
+  }
+
   "Md5Recurse .disabled_md5" should "not scane subdirs" in {
     val testdir = Path.fromString(SRC_TEST_RES_DIR) / "disabled_md5"
     assert(testdir.exists === true)
