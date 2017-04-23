@@ -16,7 +16,13 @@ class LocalFileUpdateTest extends FlatSpec with TestConfig with TestData {
   val MD5DATA_EXT = ".md5data"
   val MD5SUM_EXT = ".md5"
 
-  "Timer" should "perfomance files" in {
+//  "user_global temp" should "perfomance" in {
+//    Timer("user_global", true) {
+//      () => Md5Recurse.main(Array("-g", "build", "-p", "user", "build/tmp"))
+//    }
+//  }
+
+  "Timer" should "performance files" in {
     if (false) {
       val testDirPath = copyTestResources / "onlyTwoFiles"
       val file = new File(testDirPath.path)

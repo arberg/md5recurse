@@ -2,15 +2,77 @@ package Md5Recurse
 
 import java.io.File
 
-import org.junit.runner.RunWith
 import org.scalatest._
-import org.scalatest.junit.JUnitRunner
 
+import scala.collection.immutable
+import scala.collection.mutable.ListBuffer
+import scala.util.Random
 import scalax.file.Path
 import scalax.io.Codec
 
-@RunWith(classOf[JUnitRunner])
+//@RunWith(classOf[JUnitRunner])
 class Md5RecurseTest extends FlatSpec with TestConfig with TestData {
+
+  class CommonInvoker(commonParams: Array[String]) {
+    def doMd5RecursePath(path: Path): Unit = {
+      doMd5RecursePath(path.path)
+    }
+    def doMd5RecursePath(path: String): Unit = {
+      Md5Recurse.main(commonParams ++ Array(path))
+    }
+  }
+
+  def isSorted(l: ListBuffer[String]): Boolean = l == l.sorted
+
+  def verifyMd5DataSorting(md5DataPath: Path) = {
+    val dirs = new ListBuffer[String]
+    val files = new ListBuffer[String]
+    md5DataPath lines() foreach {
+      line => {
+        if (line.length > 0) {
+          if (line.charAt(0) == '>') {
+            dirs += line.substring(0)
+            assert(isSorted(files) === true, files)
+            files.clear()
+          } else {
+            files += Md5FileInfo.parseMd5DataLine("dummydir", line).fileName()
+          }
+        }
+        println(line)
+      }
+    }
+    dirs.foreach(println)
+    assert(isSorted(dirs) === true)
+  }
+
+
+  "Md5Recurse sorting" should "print global files sorted by directories" in {
+    val testDirPath = copyTestResources
+
+    val aToZ: immutable.Seq[Char] = 'a' to 'z'
+    val shuffled = Random.shuffle(aToZ)
+    for (c <- shuffled) {
+      val newDirectory = testDirPath / c.toString
+      newDirectory.createDirectory()
+      for (c <- shuffled) {
+        val newFile = newDirectory / c.toString
+        newFile.createFile()
+        newFile.write(c.toString)
+        println(newFile.path)
+      }
+      println(newDirectory.path)
+    }
+    new CommonInvoker(Array("-g", TEST_EXECUTION_GLOBAL_DIR, "-p", "sorting")) {
+      // verify sorting for newly generated global file
+      doMd5RecursePath(testDirPath)
+      verifyMd5DataSorting(TEST_EXECUTION_GLOBAL_DIR_PATH / "sorting_global.md5data")
+      // verify sorting for global file which is mostly printed from printOutSideScope
+      // First line will currently be unsorted
+//      doMd5RecursePath(testDirPath / "a")
+//      verifyMd5DataSorting(TEST_EXECUTION_GLOBAL_DIR_PATH / "sorting_global.md5data")
+    }
+
+  }
 
   "Md5Recurse find missing files from global" should "print missing file (test both relative and absolute path)" in {
     val testDirPath = copyTestResources
@@ -109,7 +171,7 @@ class Md5RecurseTest extends FlatSpec with TestConfig with TestData {
     assertFilesContainExactly(MD5_DUMMY1, 1, globalMd5FilePath, localMd5FilePath)
   }
 
-    // Test fails because of bug I havn't solved yet
+  // Test fails because of bug I havn't solved yet
   "Md5Recurse scan single file without dir" should "global and local should be updated" in {
     val testDirPath = copyTestResources
     val filepath1 = testDirPath / "dummy1.log"

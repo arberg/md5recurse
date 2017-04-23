@@ -108,38 +108,27 @@ object Md5FileInfo {
     * @param md5dataFile
     * @return
     */
-  def readMd5DataFile(md5dataFile: File): DirToFileMap[Md5FileInfo] = {
-    val dirToFileMap = new DirToFileMap[Md5FileInfo];
+  def readMd5DataFile(md5dataFile: File): DirToFileMap = {
+    val dirToFileMap = new DirToFileMap;
     val encoding = "UTF-8"
     var lineNo = 1;
     var lastLine = "";
     try {
-      var prefixDir: String = ""
-      var currentDir: String = getFileDir(md5dataFile)
-      var fileMap = dirToFileMap.getOrCreateDir(new File(currentDir))
+      var currentDir: String = getFileDir(md5dataFile) // todo does not need to do canonical file change if src input is canonicalized
+      var fileList = dirToFileMap.getOrCreateDir(currentDir) // used for local files
       val source = Source.fromFile(md5dataFile, encoding)
       for (line <- source.getLines) {
         lastLine = line
-        if (line.startsWith("+")) {
-          // Unused: I don't think I ever write this, to be removed
-          prefixDir = line.substring(1)
-        } else if (line.startsWith(">")) {
+        if (line.startsWith(">")) {
           // New directory
-          dirToFileMap.setDir(currentDir, fileMap)
-          currentDir = prefixDir + line.substring(1)
-          fileMap = dirToFileMap.getOrCreateDir(new File(currentDir))
+          currentDir = line.substring(1)
+          fileList = dirToFileMap.getOrCreateDir(currentDir)
         } else {
           // New file
-          try {
-            val fileInfo = Md5FileInfo.parseMd5DataLine(currentDir, line)
-            fileMap += (fileInfo.fileName() -> fileInfo)
-          } catch {
-            case e: RuntimeException => System.err.println("Error occurred reading file " + md5dataFile + " @ line " + lineNo + " Parse error: " + lastLine)
-          }
+          fileList.list += line
         }
         lineNo += 1
       }
-      dirToFileMap.setDir(currentDir, fileMap)
       source.close
     } catch {
       case e: FileNotFoundException =>

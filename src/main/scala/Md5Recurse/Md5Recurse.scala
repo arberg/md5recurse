@@ -491,7 +491,7 @@ object Md5Recurse {
   class DataFileUpdater(config: Config) {
     val globalWriter = new GlobalWriter(config)
     val failureWriter = new FailureWriter(config)
-    val pendingMd5sMap = new DirToFileMap[Md5FileInfo]
+    val pendingMd5sMap = new DirToFileMap
 
     def close(): Unit = {
       globalWriter.close();
@@ -503,30 +503,38 @@ object Md5Recurse {
       writeBothMd5Files(dir, md5s)
     }
 
+    private def sort(md5s: List[Md5FileInfo]) = {
+      md5s.sortBy(_.fileName())
+    }
+
     def updateFileSetAndWriteFilesForDir(dir: File, md5s: List[Md5FileInfo], doFlush: Boolean) {
       // Sort to make text-comparison of files more useful
-      val sortedMd5s = md5s.sortBy(_.fileName())
+      val sortedMd5s = sort(md5s)
       if (Config.it.printMd5) printMd5Hashes(dir, sortedMd5s)
       write(dir, sortedMd5s, doFlush)
     }
 
-    def updateFilesIncludePendingChanges(dir: File, originalGlobalFileMap: Map[String, Md5FileInfo]): Unit = {
+    def updateFilesIncludePendingChanges(dir: String, originalGlobalFileListMap: FileListOrMap): Unit = {
+      originalGlobalFileListMap.fillMap(dir) // todo perhaps write lines directly
+      val orgMap = originalGlobalFileListMap.map
       val fileMapperOption: Option[Map[String, Md5FileInfo]] = pendingMd5sMap.removeDir(dir)
       // map ++ has new md5s on the right so it overwrites old values
-      val updatedFileMap = if (fileMapperOption.isDefined) originalGlobalFileMap ++ fileMapperOption.get else originalGlobalFileMap
+      val updatedFileMap = if (fileMapperOption.isDefined) orgMap ++ fileMapperOption.get else orgMap
       val md5s = updatedFileMap.values.toList
-      globalWriter.write(dir, md5s, false)
+      val sortedMd5s = if (fileMapperOption.isDefined) sort(md5s) else md5s
+      val dirFile = new File(dir)
+      globalWriter.write(dirFile, sortedMd5s, false)
       // Only update local files if there are changes
       if (fileMapperOption.isDefined)
-        writeBothMd5Files(dir, md5s)
+        writeBothMd5Files(dirFile, md5s)
     }
 
     /**
       * Write the final pending changes. Needed when scanning individual files
       */
     def updateFilesFinalPendingChanges(): Unit = {
-      for (pendingDir <- pendingMd5sMap.map.keys) {
-        updateFileSetAndWriteFilesForDir(pendingDir, pendingMd5sMap.removeDir(pendingDir).get.values.toList, false)
+      for (pendingDir: String <- pendingMd5sMap.map.keys) {
+        updateFileSetAndWriteFilesForDir(new File(pendingDir), pendingMd5sMap.removeDir(pendingDir).get.values.toList, false)
       }
     }
 
@@ -535,23 +543,24 @@ object Md5Recurse {
       if (dirOrFile.isDirectory) {
         updateFileSetAndWriteFilesForDir(dirOrFile, md5s, true)
       } else {
-        val fileMapper: mutable.Map[String, Md5FileInfo] = pendingMd5sMap.getOrCreateDir(dir)
-        md5s foreach (fileInfo => fileMapper += (fileInfo.fileName() -> fileInfo))
+        val fileMapper: FileListOrMap = pendingMd5sMap.getOrCreateDir(dir)
+        md5s foreach (fileInfo => fileMapper.map += (fileInfo.fileName() -> fileInfo))
       }
-      val sortedFailures = failures.sortBy(_.fileName())
+      val sortedFailures = sort(failures)
       failureWriter.write(dir, sortedFailures, failureMsgs)
     }
   }
 
-  def printDirsOutsideScope(dataFileUpdater: DataFileUpdater, fileSet: DirToFileMap[Md5FileInfo], configSrcDirs: Iterable[File]) {
+  def printDirsOutsideScope(dataFileUpdater: DataFileUpdater, fileSet: DirToFileMap, configSrcDirs: Iterable[File]) {
     for (
-      prevMapDir <- fileSet.map
+      dir <- fileSet.map.keySet
       if !configSrcDirs.exists({
-        f => (prevMapDir._1.getPath() + File.separator).startsWith(f.getPath() + File.separator)
+        f => (dir + File.separator).startsWith(f.getPath + File.separator)
       })
     ) {
-      if (Config.debugLog) println("Writing outside dir: " + prevMapDir)
-      dataFileUpdater.updateFilesIncludePendingChanges(prevMapDir._1, prevMapDir._2)
+      // If I evaluate dir inside for-loop with ';dir = dirMap._1' then the ordering of the traversal changes
+      if (Config.debugLog) println("Writing outside dir: " + dir)
+      dataFileUpdater.updateFilesIncludePendingChanges(dir, fileSet.removeDirListMap(dir).get)
     }
     dataFileUpdater.updateFilesFinalPendingChanges()
   }
@@ -560,13 +569,13 @@ object Md5Recurse {
   def execute(config: Config) {
     Md5Recurse.initNativeLibrary()
     val dataFileUpdater = new DataFileUpdater(config)
-    val fileSet: DirToFileMap[Md5FileInfo] =
+    val fileSet: DirToFileMap =
       if (config.readMd5DataGlobally)
         Timer.withResult("Md5Recurse.ReadGlobalFile", Config.it.logPerformance) {
           () => Md5FileInfo.readMd5DataFile(new File(config.md5dataGlobalFilePath()))
         }
       else
-        new DirToFileMap[Md5FileInfo]()
+        new DirToFileMap()
 
     def isDirDisabled(dir: File) = {
       val files = dir.listFiles
@@ -577,22 +586,24 @@ object Md5Recurse {
       }
     }
 
-    def execVerifyByRecursion(recurse: Boolean, dirOrFile: File, fileSet: DirToFileMap[Md5FileInfo], postScan: (File, List[Md5FileInfo], List[Md5FileInfo], List[String]) => Unit) {
+    def execVerifyByRecursion(recurse: Boolean, dirOrFile: File, fileSet: DirToFileMap, postScan: (File, List[Md5FileInfo], List[Md5FileInfo], List[String]) => Unit) {
       if (dirOrFile.exists) {
         if (dirOrFile.isDirectory()) {
-          if (dirOrFile.listFiles == null) {
-            System.err.println("Unable to read dir, permission denied or io error: " + dirOrFile.getPath)
-          } else if (!isDirDisabled(dirOrFile)) {
-            val (md5s, failureMd5s, failureMessages) = verifyAndGenerateMd5ForDirectoryNonRecursive(dirOrFile, fileSet.getDir(dirOrFile))
-            postScan(dirOrFile, md5s, failureMd5s, failureMessages)
+          val dir = dirOrFile
+          if (dir.listFiles == null) {
+            System.err.println("Unable to read dir, permission denied or io error: " + dir.getPath)
+          } else if (!isDirDisabled(dir)) {
+            val (md5s, failureMd5s, failureMessages) = verifyAndGenerateMd5ForDirectoryNonRecursive(dir, fileSet.removeDir(dir))
+            postScan(dir, md5s, failureMd5s, failureMessages)
             if (recurse)
-              for (f <- dirOrFile.listFiles().sortBy(_.getName).toList if f.isDirectory()) // Sort traversal to get global files written same order and thus makes text-comparison possible
+              for (f <- dir.listFiles().sortBy(_.getName).toList if f.isDirectory()) // Sort traversal to get global files written same order and thus makes text-comparison possible
                 execVerifyByRecursion(true, f, fileSet, postScan)
           }
         } else {
-          val dir = dirOrFile.getParentFile
-          val (md5s, failureMd5s, failureMessages) = verifyAndGenerateMd5SingleFile(dirOrFile, fileSet.getDir(dir))
-          postScan(dirOrFile, md5s, failureMd5s, failureMessages)
+          val file = dirOrFile
+          val dir = file.getParentFile
+          val (md5s, failureMd5s, failureMessages) = verifyAndGenerateMd5SingleFile(file, fileSet.getDir(dir))
+          postScan(file, md5s, failureMd5s, failureMessages)
         }
       } else if (Config.it.doPrintMissing) {
         println("MissingDir " + dirOrFile)
@@ -602,16 +613,16 @@ object Md5Recurse {
       }
     }
 
-    def execVerifySrcDirList(recurse: Boolean, dirs: Iterable[File]) {
+    def execVerifySrcDirList(recurse: Boolean, dirs: Iterable[String]) {
       for (srcDir <- dirs) {
         // Convert srcDir to real path (not just absolute) to avoid /./ and relative names in global file
-        execVerifyByRecursion(recurse, new File(Path(srcDir).toRealPath().path), fileSet, dataFileUpdater.updateFileSetAndWriteFiles)
+        execVerifyByRecursion(recurse, new File(srcDir), fileSet, dataFileUpdater.updateFileSetAndWriteFiles)
       }
     }
 
     if (config.doGenerateNew || !config.srcDirs.isEmpty) {
       Timer("Md5Recurse.Scan files", config.logPerformance) {
-        () => execVerifySrcDirList(true, config.srcDirs)
+        () => execVerifySrcDirList(true, config.srcDirs.map(_.getPath()))
       }
       Timer("Md5Recurse.printDirsOutsideScope", config.logPerformance) {
         () => printDirsOutsideScope(dataFileUpdater, fileSet, config.srcDirs)
@@ -666,7 +677,9 @@ object Md5Recurse {
               }
             }
           }
-          def paren(str:String) = if (str.isEmpty) "" else s" ($str)"
+
+          def paren(str: String) = if (str.isEmpty) "" else s" ($str)"
+
           Timer("Md5Recurse" + paren(config.md5FilePrefix), config.logPerformance) {
             () => execute(config)
           }
