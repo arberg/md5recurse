@@ -47,8 +47,13 @@ trait TestHelper extends FlatSpec with Matchers {
     * Deletes  md5-hash file attribute for all files in path
     */
   def deleteMd5FileAttributes(path: Path) {
-    path.children().foreach(p =>
-      FileUtil.deleteAttr(FileUtil.attrView(new File(p.path)), Md5FileInfo.ATTR_MD5RECURSE))
+    path.children().foreach(
+      p => {
+        val lastMod = p.lastModified
+        FileUtil.deleteAttr(FileUtil.attrView(new File(p.path)), Md5FileInfo.ATTR_MD5RECURSE)
+        assert(lastMod == p.lastModified)
+      }
+    )
   }
 
   /**
@@ -111,6 +116,7 @@ trait TestHelper extends FlatSpec with Matchers {
   def md5Recurse(params: Array[String]) {
     Md5Recurse.main(params)
   }
+
   def md5Recurse(param: String) {
     Md5Recurse.main(Array(param))
   }

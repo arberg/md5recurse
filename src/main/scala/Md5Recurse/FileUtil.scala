@@ -137,6 +137,7 @@ object FileUtil {
     try {
       if (attrView.list().contains(name)) {
         attrView.delete(name);
+        println("deleted attribute")
       }
     } catch {
       case e: Exception => System.err.println("Unable to delete file attribute for :" + e)
