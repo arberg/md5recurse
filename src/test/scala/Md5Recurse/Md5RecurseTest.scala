@@ -86,12 +86,12 @@ class Md5RecurseTest extends FlatSpec with TestConfig with TestData {
 
     // Generate global file, then check no missing is printed
     md5Recurse(params :+ testDirPath.path)
-    md5RecurseGetOutput(paramsMissing :+ testDirPath.path) should not include ("Missing")
+    md5RecurseGetOutput(paramsMissing :+ testDirPath.path, false) should not include ("Missing")
 
     file.delete()
 
-    md5RecurseGetOutput(paramsMissing :+ testDirPath.path, true) should include(s"Missing $filePathString")
-    md5RecurseGetOutput(paramsMissing :+ testDirPath.toAbsolute.path, true) should include(s"Missing $filePathString")
+    md5RecurseGetOutput(paramsMissing :+ testDirPath.path) should include(s"Missing $filePathString")
+    md5RecurseGetOutput(paramsMissing :+ testDirPath.toAbsolute.path) should include(s"Missing $filePathString")
   }
 
   "Md5Recurse scan single file" should "update file attribute" in {
@@ -100,10 +100,16 @@ class Md5RecurseTest extends FlatSpec with TestConfig with TestData {
   }
 
   "Md5Recurse scan relative dir" should "generate correct global file" in {
-    val file = Path.fromString(SRC_TEST_RES_DIR) / "."
-    md5Recurse(Array("-q", "--globaldir", TEST_EXECUTION_GLOBAL_DIR, "-V", "3", file.toAbsolute.path))
+    val testDir = copyTestResources
     val globalFile = Path.fromString(TEST_EXECUTION_GLOBAL_DIR) / "_global.md5data"
+    val output = md5RecurseGetOutput(Array("-q", "--globaldir", TEST_EXECUTION_GLOBAL_DIR, "-V", "3", testDir.toAbsolute.path))
+    assert(ExecutionLog.current.readFileAndGeneratedMd5 == true)
+    output should include ("New") // Verbose print Check we scanned files
     globalFile.lines()(Codec.UTF8).exists(s => s.contains("/.") || s.contains(File.separator + ".")) should be(false)
+
+    val output2 = md5RecurseGetOutput(Array("-q", "--globaldir", TEST_EXECUTION_GLOBAL_DIR, "-V", "3", testDir.toAbsolute.path))
+    assert(ExecutionLog.current.readFileAndGeneratedMd5 == false)
+    output2 should include ("Skipped") // Check we scanned files
   }
 
   "Md5Recurse .disabled_md5" should "not scane subdirs" in {

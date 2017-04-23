@@ -81,7 +81,7 @@ trait TestHelper extends FlatSpec with Matchers {
     validateAttr(file, md5FileInfo.md5String)
   }
 
-  def md5RecurseGetOutput(params: Array[String], doEcho: Boolean = false): String = {
+  def md5RecurseGetOutput(params: Array[String], doEcho: Boolean = true): String = {
     val streamOut = new java.io.ByteArrayOutputStream()
     Console.withOut(streamOut) {
       //all printlns in this block will be redirected

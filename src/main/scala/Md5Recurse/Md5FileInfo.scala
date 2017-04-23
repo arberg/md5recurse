@@ -98,10 +98,6 @@ object Md5FileInfo {
     fileSet.getDir(md5dataFile.getParentFile)
   }
 
-  private def getFileDir(file: File): String = {
-    file.getParentFile.getCanonicalPath
-  }
-
   /**
     * Reads MD5 data files. The reader supports reading concatenated files, where the same directory is mentioned several times. If files appear multiple times, the last file will be remembered
     *
@@ -114,8 +110,8 @@ object Md5FileInfo {
     var lineNo = 1;
     var lastLine = "";
     try {
-      var currentDir: String = getFileDir(md5dataFile) // todo does not need to do canonical file change if src input is canonicalized
-      var fileList = dirToFileMap.getOrCreateDir(currentDir) // used for local files
+      var currentDir: String = md5dataFile.getParent()
+      var fileList = dirToFileMap.getOrCreateDir(currentDir) // Initial fileList is used for local md5data files
       val source = Source.fromFile(md5dataFile, encoding)
       for (line <- source.getLines) {
         lastLine = line
@@ -161,7 +157,7 @@ object Md5FileInfo {
     // Lock the file so others cannot write file, while we read it to generate MD5 and then write fileAttribute
     // We don't need the lock on linux, unless the filesystem is mounted NTFS I think. Its probably filesystem dependent not OS dependent.
     val updateAttributeFunction = () => {
-      val lastModifiedBeforeAttributeUpdateWasEqual = md5FileInfo.lastModified() == file.lastModified() // todo
+      val lastModifiedBeforeAttributeUpdateWasEqual = md5FileInfo.lastModified() == file.lastModified()
       doUpdate(md5FileInfo)
       if (lastModifiedBeforeAttributeUpdateWasEqual && file.lastModified() != md5FileInfo.lastModified()) {
         file.setLastModified(md5FileInfo.lastModified())
