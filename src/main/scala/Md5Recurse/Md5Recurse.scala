@@ -385,7 +385,7 @@ object Md5Recurse {
   def verifyAndGenerateMd5NonRecursive(dir: File, files: List[File], globalDirSet: Option[Map[String, Md5FileInfo]]): (List[Md5FileInfo], List[Md5FileInfo], List[String], Boolean, Long) = {
     val config = Config.it
     //    if (config.verbose >= 2) print("Dir: " + dir)
-    // Read md5data files in dir. Lazy makes little difference, because we always read update local files and diff with new version on write
+    // Read md5data files in dir lazily, so we only read it if the global file does not exist or a file has been updated in the directory
     lazy val localDirSet =
     if (Config.it.readMd5DataPrDirectory) {
       val md5dataFilename = dir.getPath + "/" + Config.it.md5dataName()
