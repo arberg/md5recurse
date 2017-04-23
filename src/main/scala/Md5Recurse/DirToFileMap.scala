@@ -9,19 +9,38 @@ import scala.collection.{Map, mutable}
   * Created by Alex on 20-08-2016.
   */
 class FileListOrMap {
-  val list: ListBuffer[String] = new ListBuffer[String]
-  val map: mutable.LinkedHashMap[String, Md5FileInfo] = mutable.LinkedHashMap()
+
+  // We store bytes instead of String because it uses roughly half the memory. It made no difference in execution time, but reduced memory
+  // need from 350M to 256M of Java Heap for 110MB global file.
+  private var list = new ListBuffer[Array[Byte]]
+  var map: mutable.LinkedHashMap[String, Md5FileInfo] = null
+
   // filling map cause a blowup of memory usage as each Md5FileInfo contains the full path
   def fillMap(dir: String): Unit = {
-    list.foreach(line => {
-      try {
-        val fileInfo = Md5FileInfo.parseMd5DataLine(dir, line)
-        map += (fileInfo.fileName() -> fileInfo)
-      } catch {
-        case e: RuntimeException => System.err.println("Error occurred parsing md5data line: " + line)
-      }
-    })
-    list.clear()
+    if (list != null) {
+      map = mutable.LinkedHashMap()
+      list.foreach(line => {
+        try {
+          addToMapInner(Md5FileInfo.parseMd5DataLine(dir, new String(line, "UTF-8")))
+        } catch {
+          case e: RuntimeException => System.err.println("Error occurred parsing md5data line: " + line)
+        }
+      })
+      list = null
+    }
+  }
+
+  def addToList(line: String) = {
+    list += line.getBytes("UTF-8")
+  }
+
+  private def addToMapInner(fileInfo: Md5FileInfo) = {
+    map += (fileInfo.fileName() -> fileInfo)
+  }
+
+  def addToMap(fileInfo: Md5FileInfo) = {
+    if (list != null) fillMap(fileInfo.getDirectoryPath())
+    addToMapInner(fileInfo)
   }
 }
 

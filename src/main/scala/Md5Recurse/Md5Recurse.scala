@@ -491,7 +491,7 @@ object Md5Recurse {
   class DataFileUpdater(config: Config) {
     val globalWriter = new GlobalWriter(config)
     val failureWriter = new FailureWriter(config)
-    val pendingMd5sMap = new DirToFileMap
+    val pendingMd5sMap = new DirToFileMap // Contains info for single file scans
 
     def close(): Unit = {
       globalWriter.close();
@@ -544,7 +544,7 @@ object Md5Recurse {
         updateFileSetAndWriteFilesForDir(dirOrFile, md5s, true)
       } else {
         val fileMapper: FileListOrMap = pendingMd5sMap.getOrCreateDir(dir)
-        md5s foreach (fileInfo => fileMapper.map += (fileInfo.fileName() -> fileInfo))
+        md5s foreach fileMapper.addToMap
       }
       val sortedFailures = sort(failures)
       failureWriter.write(dir, sortedFailures, failureMsgs)

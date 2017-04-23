@@ -125,7 +125,7 @@ object Md5FileInfo {
           fileList = dirToFileMap.getOrCreateDir(currentDir)
         } else {
           // New file
-          fileList.list += line
+          fileList.addToList(line)
         }
         lineNo += 1
       }

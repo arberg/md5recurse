@@ -38,10 +38,10 @@ class Md5RecurseTest extends FlatSpec with TestConfig with TestData {
             files += Md5FileInfo.parseMd5DataLine("dummydir", line).fileName()
           }
         }
-        println(line)
+//        println(line)
       }
     }
-    dirs.foreach(println)
+//    dirs.foreach(println)
     assert(isSorted(dirs) === true)
   }
 
@@ -58,12 +58,15 @@ class Md5RecurseTest extends FlatSpec with TestConfig with TestData {
         val newFile = newDirectory / c.toString
         newFile.createFile()
         newFile.write(c.toString)
-        println(newFile.path)
+//        println(newFile.path)
       }
-      println(newDirectory.path)
+//      println(newDirectory.path)
     }
     new CommonInvoker(Array("-g", TEST_EXECUTION_GLOBAL_DIR, "-p", "sorting")) {
       // verify sorting for newly generated global file
+      doMd5RecursePath(testDirPath)
+      verifyMd5DataSorting(TEST_EXECUTION_GLOBAL_DIR_PATH / "sorting_global.md5data")
+      // Verify sorting when global files exists
       doMd5RecursePath(testDirPath)
       verifyMd5DataSorting(TEST_EXECUTION_GLOBAL_DIR_PATH / "sorting_global.md5data")
       // verify sorting for global file which is mostly printed from printOutSideScope
