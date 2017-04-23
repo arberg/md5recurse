@@ -150,11 +150,11 @@ class Md5OptionParser extends scopt.OptionParser[Config]("Md5Recurse") {
 
   opt[Unit]("enableLocalMd5Data") action { (x, c) =>
     c.copy(readMd5DataPrDirectory = true, writeMd5DataPrDirectory = true)
-  } text "Enable reading and writing Md5Data Pr Directory "
+  } text "Enable reading and writing Md5Data files locally in each directory "
 
   opt[Unit]("enableLocalMd5Sum") action { (x, c) =>
     c.copy(writeMd5SumPrDirectory = true)
-  } text "Enable writing files Pr Directory usable by md5sum, files will not be read by this program"
+  } text "Enable writing md5sum files locally in each directory. These files will not be read by this program for md5-data."
 
   opt[Unit]("alwaysUpdateLocal") action { (x, c) =>
     c.copy(alwaysUpdateLocal = true)
