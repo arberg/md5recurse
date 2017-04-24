@@ -36,9 +36,9 @@ function mkdir_perm() {
 function killGroup() {
 	# xargs will trim leading space
 	PSGROUP=$(ps -o pgid= $$ | xargs)
-  echo
-  echo "Killing process group '$PSGROUP' (as $USER), please wait after sending first ^C"
-  kill -TERM -${PSGROUP}
+	echo
+	echo "Killing process group '$PSGROUP' (as $USER), please wait after sending first ^C"
+	kill -TERM -${PSGROUP}
 }
 
 cleanLocalDirMd5FilesWhichHaveBeenMovedBetweenDisks() {
@@ -125,28 +125,10 @@ fi
 GLOBAL_MD5_DATA_FILES_GLOB_EXCLUDING_FINAL_MD5="$MD5_GLOBAL_DIR/disk*_global.md5data $MD5_GLOBAL_DIR/user_global.md5data $MD5_GLOBAL_DIR/cache_global.md5data"
 GLOBAL_MD5_DATA_FILES_GLOB="$MD5_GLOBAL_DIR/disk*_global.md5data $MD5_GLOBAL_DIR/user_global.md5data $MD5_GLOBAL_DIR/cache_global.md5data $MD5_GLOBAL_DIR/md5data.md5"
 
-##########################################################################
-########### backup current to archive                          ###########
-##########################################################################
-
-function backupToArchive() {
-	ARCHIVE_DIR=$MD5_GLOBAL_DIR/$1
-	mkdir_perm $ARCHIVE_DIR
-	# dev/null because it gives warning when files are not there
-	cp -f $GLOBAL_MD5_DATA_FILES_GLOB $ARCHIVE_DIR 2> /dev/null
-	# remove again we didn't copy any files to archive, in case of first backup
-	find $ARCHIVE_DIR -type d -empty -maxdepth 0 -delete
-}
-
-if [ "$ENABLE_GLOBAL_MD5_FILES" == "1" ] ; then
-	backupToArchive ${ARCHIVE_PREFIX_DAILY}$(date +%Y-%m-%d_%H%M)
-	backupToArchive ${ARCHIVE_PREFIX_WEEKLY}$(date +%Y-w%W)
-fi
-
 ####################################################################################
 ########### Execute md5recurse simultaniously on each disk, then on user ###########
 ####################################################################################
-OPTIONS="-q -e UTF-8-BOM ${EXTRA_OPTIONS} $*"
+OPTIONS="-q ${EXTRA_OPTIONS} $*"
 
 if [ "$ENABLE_GLOBAL_MD5_FILES" == "1" ] ; then
 	OPTIONS="--globaldir ${MD5_GLOBAL_DIR} $OPTIONS"
@@ -163,6 +145,7 @@ fi
 log "Started with options '${OPTIONS}'"
 
 renice 19 $$ > /dev/null
+STARTTIME=$(date +%s)
 
 # Note Dirs with  a '.disable_md5' will be skipped
 for SCAN_DIR in /mnt/disk* /mnt/cache; do
@@ -170,7 +153,8 @@ for SCAN_DIR in /mnt/disk* /mnt/cache; do
 	DISK=$(basename $SCAN_DIR)
 	execMd5recurse -p "${DISK}" $OPTIONS ${SCAN_DIR} | tee ${LOGNAME}_${DISK}.log &
 
-	waitForFreeProcessor
+	# It seems silly to wait for free processor as the disk IO is probably many times slower than MD5 computation
+	# waitForFreeProcessor
 done
 wait 
 
@@ -186,20 +170,34 @@ if [ "$ENABLE_GLOBAL_MD5_FILES" == "1" ] ; then
 			cat ${globalFile} | sed "s|^>/mnt/${DISK}/|>/mnt/user/|" >> ${TMP_MD5_FILE} 
 		fi 
 	done
-	# TODO mv not cp
-	cp ${TMP_MD5_FILE} ${MD5_GLOBAL_DIR}/user_global.md5data
+	mv ${TMP_MD5_FILE} ${MD5_GLOBAL_DIR}/user_global.md5data
 fi
 
 # If we have local files enabled, also scan /mnt/user to we update the local md5 files
 if [ "$ENABLE_LOCAL_MD5_FILES" == "1" ] || [ "$ENABLE_LOCAL_MD5SUM_FILES" == "1" ] ; then
-	execMd5recurse -p user $OPTIONS /mnt/user | tee ${LOGNAME}_uesr.log 
+	execMd5recurse -p user $OPTIONS /mnt/user | tee ${LOGNAME}_user.log 
+	#echo "Clean local md5-files"
+	cleanLocalDirMd5FilesWhichHaveBeenMovedBetweenDisks
 fi
 
-cleanLocalDirMd5FilesWhichHaveBeenMovedBetweenDisks
 
 ##########################################################################
 ########### Backup md5 global data to other disks on the array ###########
+########### backup to rolling archive                          ###########
 ##########################################################################
+
+function backupToArchive() {
+	ARCHIVE_DIR=$MD5_GLOBAL_DIR/$1
+	zipFile=$2
+
+	# Let the first backup any give day/week be moved to a archive, so daily and last weekly don't always overlap.
+	if [ ! -d "$ARCHIVE_DIR" ] && [ ! -f "$ARCHIVE_DIR/$zipFile" ] ; then
+		# dev/null because it gives warning when files are not there
+		mkdir_perm $ARCHIVE_DIR
+		cp $zipFile $ARCHIVE_DIR
+		# Old direct copy: cp -f $GLOBAL_MD5_DATA_FILES_GLOB $ARCHIVE_DIR 2> /dev/null
+	fi
+}
 
 if [ "$ENABLE_GLOBAL_MD5_FILES" == "1" ] ; then
 	# Goto dir to get md5sum to generate file without directory prefix
@@ -207,14 +205,24 @@ if [ "$ENABLE_GLOBAL_MD5_FILES" == "1" ] ; then
 	md5sum -b ${GLOBAL_MD5_DATA_FILES_GLOB_EXCLUDING_FINAL_MD5} > md5data.md5
 	popd > /dev/null
 
+	BACKUP_ZIP=backup.zip
+	zip $BACKUP_ZIP ${GLOBAL_MD5_DATA_FILES_GLOB}
+	chmod a+r $BACKUP_ZIP
+
+	# Dayly name does not include Hour (%H%M) to avoid several invocations during one day to cause prune to remove all other daily archives
+	backupToArchive "${ARCHIVE_PREFIX_DAILY}$(date +%Y-%m-%d)" $BACKUP_ZIP
+	backupToArchive "${ARCHIVE_PREFIX_WEEKLY}$(date +%Y-w%W)" $BACKUP_ZIP
+
 	# Copy to backup-disks which are located on unRaid as a subdir in usershare but with forced selected disk
 	for DISKNAME in ${MD5_GLOBAL_BACKUP_DISKS}  ; do
 		# For debugging: Remove & to make it easier to break and kill for-loop process
 		DISK=$(basename $DISKNAME)
 		BACKUP_DISK_DIR=/mnt/${DISK}/${MD5_GLOBAL_SHARE}/${PREFIX_FOR_BACKUP_FOLDER}${DISK}
 		mkdir_perm ${BACKUP_DISK_DIR}
-		cp -p ${GLOBAL_MD5_DATA_FILES_GLOB} ${BACKUP_DISK_DIR}
+		# Old direct copy: cp -p ${GLOBAL_MD5_DATA_FILES_GLOB} ${BACKUP_DISK_DIR}
+		cp $BACKUP_ZIP ${BACKUP_DISK_DIR}
 	done
+	rm $BACKUP_ZIP
 
 	# Warning: This is actually a bit dangerous if we do rm -rf. Am I sure the print does not contain a badly excaped slash, causing be to delete root? pushd necessary or delete runs in wrong dir. Hence move to recyclebin, which can be autocleaned elsewhere on monthly basis or similar
 	pushd $MD5_GLOBAL_DIR  > /dev/null
@@ -226,6 +234,8 @@ if [ "$ENABLE_GLOBAL_MD5_FILES" == "1" ] ; then
 	popd > /dev/null
 fi
 
-log "Finished: Executed with options '${OPTIONS}'"
+ENDTIME=$(date +%s)
+RUNTIME=$(($ENDTIME - $STARTTIME))
+log "Finished: Executed with options '${OPTIONS}' - Execution time ${RUNTIME}s"
 
 rm $PID

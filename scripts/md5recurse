@@ -16,5 +16,11 @@ if [ "$1" == "" ] ; then
 	exit 1
 fi
 
-/boot/app/md5recurse/bin/md5recurse -e UTF-8-BOM "$@"
+source $(dirname "$0")/md5recurse_unraid.cfg 
+if [ ! -f "$MD5RECURSE_EXEC" ] ; then
+	echo "ERROR missing md5recurse install, please check md5recurse_unraid.cfg: MD5RECURSE_EXEC=$MD5RECURSE_EXEC"
+	exit 1
+fi
+
+$MD5RECURSE_EXEC ${EXTRA_OPTIONS} "$@"
 
