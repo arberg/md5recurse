@@ -1,7 +1,19 @@
 #!/bin/bash
+# trap ctrl-c and call ctrl_c()
+function killGroup() {
+	# xargs will trim leading space
+	PSGROUP=$(ps -o pgid= $$ | xargs)
+  echo
+  echo "Killing process group '$PSGROUP' (as $USER), please wait after sending first ^C"
+  kill -TERM -${PSGROUP}
+}  
+trap killGroup INT
+
 for SCAN_DIR in /mnt/disk* ; do
 	# For debugging: Remove & to make it easier to break and kill for-loop process
 	DISK=$(basename $SCAN_DIR)
-	scala -J-Xmx1024M /boot/bin/scala/Md5Recurse.jar -q -p "${DISK}" --deletemd5 /mnt/user
+	/boot/app/md5recurse/bin/md5recurse -q -p "${DISK}" --deletemd5 ${SCAN_DIR} &
 done
+
+/boot/app/md5recurse/bin/md5recurse -q -p user --deletemd5 /mnt/user &
 wait

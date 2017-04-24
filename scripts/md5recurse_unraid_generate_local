@@ -1,2 +1,0 @@
-#!/bin/bash
-md5recurse_unraid --enableLocalMd5Data --enableLocalMd5Sum

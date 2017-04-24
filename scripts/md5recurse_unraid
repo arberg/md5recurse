@@ -4,8 +4,8 @@
 source $(dirname "$0")/md5recurse_unraid.cfg
 source $(dirname "$0")/java.cfg
 
-if [ ! -f "$MD5RECURSE_BIN/md5recurse" ] ; then
-	echo "ERROR missing md5recurse install, please check md5recurse_unraid.cfg: MD5RECURSE_BIN=$MD5RECURSE_BIN"
+if [ ! -f "$MD5RECURSE_EXEC" ] ; then
+	echo "ERROR missing md5recurse install, please check md5recurse_unraid.cfg: MD5RECURSE_EXEC=$MD5RECURSE_EXEC"
 	exit 1
 fi
 
@@ -65,7 +65,8 @@ cleanLocalDirMd5FilesWhichHaveBeenMovedBetweenDisks() {
 
 execMd5recurse() {
 	# Memory option: -Xmx1024M sets upper limit on memory available, it will only use so much if needed. If not using --enableReadGlobalMd5 or --global then 256M is enough. JAVA_OPTS is read by scala command.
-	${MD5RECURSE_BIN}/md5recurse "$@"
+	# Note that the md5recurse script now sets the memory option, so we probably cannot overwrite it here
+	${MD5RECURSE_EXEC} "$@"
 }
 
 log() {
@@ -145,11 +146,21 @@ fi
 ####################################################################################
 ########### Execute md5recurse simultaniously on each disk, then on user ###########
 ####################################################################################
-OPTIONS="-q -e UTF-8-BOM $*"
+OPTIONS="-q -e UTF-8-BOM ${EXTRA_OPTIONS} $*"
 
 if [ "$ENABLE_GLOBAL_MD5_FILES" == "1" ] ; then
 	OPTIONS="--globaldir ${MD5_GLOBAL_DIR} $OPTIONS"
 fi
+
+if [ "$ENABLE_LOCAL_MD5_FILES" == "1" ] ; then
+	OPTIONS="--enableLocalMd5Data $OPTIONS"
+fi
+
+if [ "$ENABLE_LOCAL_MD5SUM_FILES" == "1" ] ; then
+	OPTIONS="--enableLocalMd5Sum $OPTIONS"
+fi
+
+log "Started with options '${OPTIONS}'"
 
 renice 19 $$ > /dev/null
 
@@ -157,13 +168,13 @@ renice 19 $$ > /dev/null
 for SCAN_DIR in /mnt/disk* /mnt/cache; do
 	# For debugging: Remove & to make it easier to break and kill for-loop process
 	DISK=$(basename $SCAN_DIR)
-	execMd5recurse -p "${DISK}" $OPTIONS ${SCAN_DIR} &
+	execMd5recurse -p "${DISK}" $OPTIONS ${SCAN_DIR} | tee ${LOGNAME}_${DISK}.log &
 
 	waitForFreeProcessor
 done
 wait 
 
-# Concatenate global files into user_global.md5data
+# Concatenate global files into user_global.md5data 
 if [ "$ENABLE_GLOBAL_MD5_FILES" == "1" ] ; then
 	TMP_MD5_FILE=${MD5_GLOBAL_DIR}/user_global_temp.md5data
 	[ -f $TMP_MD5_FILE ] && rm ${TMP_MD5_FILE}
@@ -175,10 +186,14 @@ if [ "$ENABLE_GLOBAL_MD5_FILES" == "1" ] ; then
 			cat ${globalFile} | sed "s|^>/mnt/${DISK}/|>/mnt/user/|" >> ${TMP_MD5_FILE} 
 		fi 
 	done
-	mv ${TMP_MD5_FILE} ${MD5_GLOBAL_DIR}/user_global.md5data
+	# TODO mv not cp
+	cp ${TMP_MD5_FILE} ${MD5_GLOBAL_DIR}/user_global.md5data
 fi
 
-execMd5recurse -p user $OPTIONS /mnt/user
+# If we have local files enabled, also scan /mnt/user to we update the local md5 files
+if [ "$ENABLE_LOCAL_MD5_FILES" == "1" ] || [ "$ENABLE_LOCAL_MD5SUM_FILES" == "1" ] ; then
+	execMd5recurse -p user $OPTIONS /mnt/user | tee ${LOGNAME}_uesr.log 
+fi
 
 cleanLocalDirMd5FilesWhichHaveBeenMovedBetweenDisks
 

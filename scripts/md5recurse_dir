@@ -1,9 +1,0 @@
-#!/bin/bash
-
-if [ "$1" == "" ] ; then
-	echo "Syntax: sudo md5recurse_dir ."
-	echo
-	exit 1
-fi
-
-md5recurse -e UTF-8-BOM --enableLocalMd5Data --enableLocalMd5Sum "$@"

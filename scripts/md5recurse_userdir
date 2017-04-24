@@ -1,0 +1,14 @@
+#!/bin/bash
+
+if [ "$1" == "" ] ; then
+	echo "Syntax: md5recurse_userdir <paths to scan within /mnt/user>"
+	echo "Examples:"
+	echo "  Check md5's of current dir "
+	echo "    md5recurse_userdir --check ."
+	echo "  Print md5's to stdout similar to md5sum"
+	echo "    md5recurse --print ."	
+	echo
+	exit 1
+fi 
+
+/boot/app/md5recurse/bin/md5recurse -e UTF-8-BOM --enableLocalMd5Data --enableLocalMd5Sum -p user -g /mnt/user/md5 "$@"
