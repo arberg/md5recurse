@@ -213,7 +213,6 @@ if [ "$ENABLE_GLOBAL_MD5_FILES" == "1" ] ; then
 	# Goto dir to get md5sum to generate file without directory prefix
 	pushd ${MD5_GLOBAL_DIR} > /dev/null
 	md5sum -b ${GLOBAL_MD5_DATA_FILES_GLOB_EXCLUDING_FINAL_MD5} > md5data.md5
-	popd > /dev/null
 
 	BACKUP_ZIP=backup.zip
 	zip $BACKUP_ZIP ${GLOBAL_MD5_DATA_FILES_GLOB}
@@ -235,7 +234,6 @@ if [ "$ENABLE_GLOBAL_MD5_FILES" == "1" ] ; then
 	rm $BACKUP_ZIP
 
 	# Warning: This is actually a bit dangerous if we do rm -rf. Am I sure the print does not contain a badly excaped slash, causing be to delete root? pushd necessary or delete runs in wrong dir. Hence move to recyclebin, which can be autocleaned elsewhere on monthly basis or similar
-	pushd $MD5_GLOBAL_DIR  > /dev/null
 	[ ! -d .Recycle.Bin ] && mkdir .Recycle.Bin
 	# WARNING: This program is running as root, so I'm reluctant to call 'rm' here without having a prefix that ensures me I'm deleting within the desired directory. Consider wiping .Recycle.Bin if delete is desired
 	# Instead of delete, move to recycle bin with this: xargs -L 1 -I {} mv {} .Recycle.Bin
