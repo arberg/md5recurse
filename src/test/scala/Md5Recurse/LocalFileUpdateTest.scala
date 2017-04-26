@@ -130,7 +130,7 @@ class LocalFileUpdateTest extends FlatSpec with TestConfig with TestData {
     // Should fail with info 'Error: Please choose storage to read from (--disableReadGlobalMd5 requires --enableLocalMd5Data)'
     //Md5Recurse.main(Array("--disable-file-attributes", testDirPath.path))
     val (_, errorNoStorage) = md5RecurseGetOutputAndError(Array("--disable-file-attributes", filepath.path))
-    errorNoStorage should include("Error: Please choose storage to read from (--disableReadGlobalMd5 requires --enableLocalMd5Data)")
+    errorNoStorage should include("Error: Please choose storage to read from")
 
     setMd5FileAttributes(filepath, "dddddddddddddddddddddddddddddddd 1 1492717460 200")
     Md5Recurse.main(Array("--disable-file-attributes", "--enableLocalMd5Data", filepath.path))

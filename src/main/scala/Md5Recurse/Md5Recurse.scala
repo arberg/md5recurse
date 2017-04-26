@@ -106,7 +106,11 @@ class Md5OptionParser extends scopt.OptionParser[Config]("Md5Recurse") {
   val TEXT_INDENT = 27
   head("Md5Recurse", "version 1.0")
 
-  note("Md5Recurse generates MD5 hashes for files recursively within directories or on single files. Data is written to file attributes by default, and can also be written with local files in each directory or to a single global file. On verify all hash changes will be printed to stderr plus written to a file in the global-dir (if global dir defined with -g)".wordWrap(TEXT_WRAP + TEXT_INDENT) + "\n")
+  note(("Md5Recurse generates MD5 hashes for files recursively within directories or on single files. Data is written to file attributes by default, " +
+    "and can also be written with local files in each directory or to a single global file. It is fastest to access a single file, so if enabled md5data will be read from " +
+    "global before local, and from local before file attributes. If a file has changed all storage forms will be read, before recalculating MD5 hash of actual file. " +
+    "On verify all hash changes will be printed to stderr plus " +
+    "written to a file in the global-dir (if global dir defined with -g)").wordWrap(TEXT_WRAP + TEXT_INDENT) + "\n")
 
   note("Secret info and fair warning: All directories containing a file by the name '.disable_md5' will be skipped (recursively)".wordWrap(TEXT_WRAP + TEXT_INDENT) + "\n")
 
@@ -114,7 +118,7 @@ class Md5OptionParser extends scopt.OptionParser[Config]("Md5Recurse") {
     // Use getCanonicalPath because on Windows filenames are not case sensitive, but its a lot slower so only use it for inputs
     // We convert paths as early as possible so we don't have to convert them every step of the way
     c.copy(srcDirs = c.srcDirs :+ x.getCanonicalFile)
-  } text "dirs to execute recursive md5-check on\n"
+  } text "dirs on which to execute recursive MD5 generation or with --check then recurse MD5 check\n"
 
   opt[Unit]("force") action { (_, c) =>
     c.copy(doVerify = true)
@@ -123,30 +127,22 @@ class Md5OptionParser extends scopt.OptionParser[Config]("Md5Recurse") {
   opt[Unit]('c', "check") action { (_, c) =>
     c.copy(doVerify = true, doGenerateNew = false)
   } text
-    """only check md5 of existing files with same modification timestamp and print
+    """only check MD5 of existing files with same modification timestamp and print
             warning if file content changed, do not scan new files or files with modified timestamp. Output is still written to
-            global and/or local md5data files (overwriting input). A file with newer timestamp will not be md5-compared,
+            global and/or local md5data files (overwriting input). A file with newer timestamp will not be MD5-compared,
             but the new files md5 will be output to md5data file if enabled (permitting manual diff afterwards if
             original is saved elsewhere)""".replaceAll("\n", "").replaceAll("[ ]+", " ").wordWrap(TEXT_WRAP, TEXT_INDENT)
 
   opt[Unit]("onlyPrintMissing") action { (_, c) =>
     c.copy(doGenerateNew = false, doPrintMissing = true, writeMd5DataGlobally = false)
-  } text "only print missing (deleted) files. New md5s will not be generated in this mode, nor will md5data be updated".wordWrap(TEXT_WRAP, TEXT_INDENT)
-
-  opt[Unit]('i', "ignoreError") action { (_, c) =>
-    c.copy(continueOnError = true)
-  } text "continue on errors and log to file"
+  } text "only print missing (deleted) files. New MD5's will not be generated in this mode, nor will md5data be updated".wordWrap(TEXT_WRAP, TEXT_INDENT)
 
   opt[File]('g', "globaldir") valueName "<dir>" action { (x, c) =>
     if (!c.doPrintMissing)
       c.copy(md5dataGlobalFolder = Some(x), writeMd5DataGlobally = true, readMd5DataGlobally = true)
     else
       c.copy(md5dataGlobalFolder = Some(x))
-  } text "The directory to store the global md5 info in a flat file. Note with global enabled missing md5's will still be read from local in each directory file if such files exists (unless disabled)".wordWrap(TEXT_WRAP, TEXT_INDENT)
-
-  opt[Unit]("disableReadGlobalMd5") action { (x, c) =>
-    c.copy(readMd5DataGlobally = false)
-  } text "Disable reading md5s from global file. Reading the global file uses more memory. This option changes effect of --global <dir>".wordWrap(TEXT_WRAP, TEXT_INDENT)
+  } text "The directory to store the global MD5 info in a flat file. Note with global enabled missing MD5's will still be read from local in each directory file if such files exists".wordWrap(TEXT_WRAP, TEXT_INDENT)
 
   opt[Unit]("enableLocalMd5Data") action { (x, c) =>
     c.copy(readMd5DataPrDirectory = true, writeMd5DataPrDirectory = true)
@@ -154,7 +150,7 @@ class Md5OptionParser extends scopt.OptionParser[Config]("Md5Recurse") {
 
   opt[Unit]("enableLocalMd5Sum") action { (x, c) =>
     c.copy(writeMd5SumPrDirectory = true)
-  } text "Enable writing md5sum files locally in each directory. These files will not be read by this program for md5-data."
+  } text "Enable writing md5sum files locally in each directory. These files will not be read by this program for MD5-data."
 
   opt[Unit]("alwaysUpdateLocal") action { (x, c) =>
     c.copy(alwaysUpdateLocal = true)
@@ -162,11 +158,19 @@ class Md5OptionParser extends scopt.OptionParser[Config]("Md5Recurse") {
 
   opt[String]('p', "prefix") valueName "<local-file-prefix>" action { (x, c) =>
     c.copy(md5FilePrefix = x, logPostFix = s" ($x)")
-  } text "prefix for global and local dir files .md5 (for md5sum program) and .md5data (data file for this program)"
+  } text "prefix for global and local dir files: The <prefix>.md5data and <prefix>_global.md5data data files for this program and <prefix>.md5 in md5sum-format"
+
+  opt[Unit]("disable-file-attributes") action { (_, c) =>
+    c.copy(useFileAttributes = false)
+  } text "disable reading and writing user file attributes which saves the MD5 and timestamp of last scan directly in the files attributes".wordWrap(TEXT_WRAP, TEXT_INDENT)
 
   opt[Unit]("deletemd5") action { (_, c) =>
     c.copy(deleteMd5 = true)
-  } text "recursively delete local/pr directory md5 sum files (both .md5data and .md5sum). All hash-generation is disabled when this option is applied".wordWrap(TEXT_WRAP, TEXT_INDENT)
+  } text "recursively delete local/pr directory MD5 sum files (both .md5data and .md5sum). All hash-generation is disabled when this option is applied".wordWrap(TEXT_WRAP, TEXT_INDENT)
+
+  opt[Unit]('i', "ignoreError") action { (_, c) =>
+    c.copy(continueOnError = true)
+  } text "continue on errors and log to file"
 
   opt[String]('e', "encoding") valueName "<charset>" action { (x, c) =>
     if (x == "UTF-8-BOM") {
@@ -176,13 +180,9 @@ class Md5OptionParser extends scopt.OptionParser[Config]("Md5Recurse") {
     }
   } text "the charset for the .md5 files for md5sum. This setting will not affect .md5data files. Encodings: UTF-8 (default), UTF-8-BOM (UTF-8 with BOM), ISO-8859-1 (see https://docs.oracle.com/javase/7/docs/api/java/nio/charset/Charset.html). Note that many windows programs will need the UTF-8 with BOM to correctly parse files, while the linux md5sum program fails to parse the BOM character.".wordWrap(TEXT_WRAP, TEXT_INDENT)
 
-  opt[Unit]("disable-file-attributes") action { (_, c) =>
-    c.copy(useFileAttributes = false)
-  } text "disable reading and writing user file attributes which saves the md5 and timestamp of last scan directly in the files attributes".wordWrap(TEXT_WRAP, TEXT_INDENT)
-
   opt[Unit]('p', "print") action { (_, c) =>
     c.copy(printMd5 = true)
-  } text "print md5 hashes to stdout"
+  } text "print MD5 hashes to stdout"
 
   def verboseCopy(c: Config, level: Int) =
     c.copy(
@@ -209,7 +209,7 @@ class Md5OptionParser extends scopt.OptionParser[Config]("Md5Recurse") {
   version("version") text "print version"
 
   checkConfig { c =>
-    if (c.readMd5DataGlobally || c.readMd5DataPrDirectory || c.useFileAttributes || c.deleteMd5) success else failure("Please choose storage to read from (--disableReadGlobalMd5 requires --enableLocalMd5Data) ")
+    if (c.readMd5DataGlobally || c.readMd5DataPrDirectory || c.useFileAttributes || c.deleteMd5) success else failure("Please choose storage to read from")
   }
   checkConfig { c =>
     // read assert logic as !(x => y), thus assert x => y (and x => y is the same as !x || y)
