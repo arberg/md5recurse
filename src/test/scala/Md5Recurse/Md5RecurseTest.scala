@@ -120,7 +120,7 @@ class Md5RecurseTest extends FlatSpec with TestConfig with TestData {
     getAttr(testFile) should be(None)
     md5Recurse(testFile.path)
     assert(ExecutionLog.current.readFileAndGeneratedMd5 == true)
-    getAttr(testFile) should be(Some("541c57960bb997942655d14e3b9607f9 1 1492944908355 3"))
+    getAttr(testFile).get should include ("541c57960bb997942655d14e3b9607f9")
   }
 
   "Md5Recurse .disabled_md5" should "not scane subdirs" in {
