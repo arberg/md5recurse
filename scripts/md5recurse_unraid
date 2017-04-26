@@ -4,8 +4,22 @@
 source $(dirname "$0")/md5recurse_unraid.cfg
 source $(dirname "$0")/java.cfg
 
+log() {
+	echo "$1"
+	[ "$LOG" != "" ] && echo "$(date "+%Y.%m.%d %H:%M") $1" >> ${LOG}
+}
+
+
 if [ ! -f "$MD5RECURSE_EXEC" ] ; then
-	echo "ERROR missing md5recurse install, please check md5recurse_unraid.cfg: MD5RECURSE_EXEC=$MD5RECURSE_EXEC"
+	log "ERROR missing md5recurse install, please check md5recurse_unraid.cfg: MD5RECURSE_EXEC=$MD5RECURSE_EXEC"
+	exit 1
+fi
+if [ -z "$JAVA_HOME" ] ; then
+	log "ERROR missing JAVA_HOME, either set in java.cfg or as environment variable"
+	exit 1
+fi
+if [ ! -f "$JAVA_HOME/bin/java" ] ; then
+	log "Error: Cannot find Java at JAVA_HOME=$JAVA_HOME"
 	exit 1
 fi
 
@@ -66,12 +80,8 @@ cleanLocalDirMd5FilesWhichHaveBeenMovedBetweenDisks() {
 execMd5recurse() {
 	# Memory option: -Xmx1024M sets upper limit on memory available, it will only use so much if needed. If not using --enableReadGlobalMd5 or --global then 256M is enough. JAVA_OPTS is read by scala command.
 	# Note that the md5recurse script now sets the memory option, so we probably cannot overwrite it here
-	${MD5RECURSE_EXEC} "$@"
-}
-
-log() {
-	[ "$LOG" != "" ] && echo "$(date "+%Y.%m.%d %H:%M") $1" >> ${LOG}
-	echo "$1"
+	# When executed via crontab we need to set JAVA_HOME directly on this prompt
+	JAVA_HOME=$JAVA_HOME ${MD5RECURSE_EXEC} "$@"
 }
 
 exitWithEcho() { 
@@ -121,9 +131,6 @@ then
   # echo "ERROR: Run as root"
   # exit 1
 fi  
-
-GLOBAL_MD5_DATA_FILES_GLOB_EXCLUDING_FINAL_MD5="$MD5_GLOBAL_DIR/disk*_global.md5data $MD5_GLOBAL_DIR/user_global.md5data $MD5_GLOBAL_DIR/cache_global.md5data"
-GLOBAL_MD5_DATA_FILES_GLOB="$MD5_GLOBAL_DIR/disk*_global.md5data $MD5_GLOBAL_DIR/user_global.md5data $MD5_GLOBAL_DIR/cache_global.md5data $MD5_GLOBAL_DIR/md5data.md5"
 
 ####################################################################################
 ########### Execute md5recurse simultaniously on each disk, then on user ###########
@@ -185,6 +192,9 @@ fi
 ########### Backup md5 global data to other disks on the array ###########
 ########### backup to rolling archive                          ###########
 ##########################################################################
+
+GLOBAL_MD5_DATA_FILES_GLOB_EXCLUDING_FINAL_MD5="disk*_global.md5data user_global.md5data cache_global.md5data"
+GLOBAL_MD5_DATA_FILES_GLOB="disk*_global.md5data user_global.md5data cache_global.md5data md5data.md5"
 
 function backupToArchive() {
 	ARCHIVE_DIR=$MD5_GLOBAL_DIR/$1
