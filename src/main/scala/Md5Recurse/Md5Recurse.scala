@@ -513,16 +513,16 @@ object Md5Recurse {
       md5s.sortBy(_.fileName())
     }
 
-    def updateFileSetAndWriteFilesForDirForced(dir: File, md5s: List[Md5FileInfo], doFlush: Boolean): Unit = {
-      updateFileSetAndWriteFilesForDir(dir, md5s, doFlush, true, Long.MaxValue)
+    def updateFileSetAndWriteFilesForDirForced(dir: File, unsortedMd5s: List[Md5FileInfo], doFlush: Boolean): Unit = {
+      updateFileSetAndWriteFilesForDir(dir, unsortedMd5s, doFlush, true, Long.MaxValue)
     }
 
-    def updateFileSetAndWriteFilesForDir(dir: File, md5s: List[Md5FileInfo], doFlush: Boolean, isFileUpdated: Boolean, greatestLastModifiedTimestampInDir: Long) {
+    def updateFileSetAndWriteFilesForDir(dir: File, unsortedMd5s: List[Md5FileInfo], doFlush: Boolean, isFileUpdated: Boolean, greatestLastModifiedTimestampInDir: Long) {
       // Sort to make text-comparison of files more useful
-      val sortedMd5s = sort(md5s)
+      val sortedMd5s = sort(unsortedMd5s)
       if (Config.it.printMd5) printMd5Hashes(dir, sortedMd5s)
-      globalWriter.write(dir, md5s, doFlush)
-      writeBothMd5Files(dir, md5s, isFileUpdated, greatestLastModifiedTimestampInDir)
+      globalWriter.write(dir, sortedMd5s, doFlush)
+      writeBothMd5Files(dir, sortedMd5s, isFileUpdated, greatestLastModifiedTimestampInDir)
     }
 
     def updateFilesIncludePendingChanges(dir: String, originalGlobalFileListMap: FileListOrMap): Unit = {
@@ -549,13 +549,13 @@ object Md5Recurse {
       }
     }
 
-    def updateFileSetAndWriteFiles(dirOrFile: File, md5s: List[Md5FileInfo], failures: List[Md5FileInfo], failureMsgs: List[String], isFileUpdated: Boolean, greatestLastModifiedTimestampInDir: Long) {
+    def updateFileSetAndWriteFiles(dirOrFile: File, unsortedMd5s: List[Md5FileInfo], failures: List[Md5FileInfo], failureMsgs: List[String], isFileUpdated: Boolean, greatestLastModifiedTimestampInDir: Long) {
       val dir = if (dirOrFile.isDirectory) dirOrFile else dirOrFile.getParentFile
       if (dirOrFile.isDirectory) {
-        updateFileSetAndWriteFilesForDir(dirOrFile, md5s, true, isFileUpdated, greatestLastModifiedTimestampInDir)
+        updateFileSetAndWriteFilesForDir(dirOrFile, unsortedMd5s, true, isFileUpdated, greatestLastModifiedTimestampInDir)
       } else {
         val fileMapper: FileListOrMap = pendingMd5sMap.getOrCreateDir(dir)
-        md5s foreach fileMapper.addToMap
+        unsortedMd5s foreach fileMapper.addToMap
       }
       val sortedFailures = sort(failures)
       failureWriter.write(dir, sortedFailures, failureMsgs)
