@@ -89,11 +89,14 @@ exitWithEcho() {
   exit 1
 }
 
+SCRIPT_ARGUMENTS="$*"
 pidCheck() { 
   PID_FILE=$1
   # name for warning error message
   NAME=$2
-
+  # accessing global variable here
+  PID_SCRIPT_ARGUMENTS="\"$SCRIPT_ARGUMENTS\""
+  
   # If a previous invokation of this script is already running, exit
   procesName=$(basename "$0")
   if [ -z "$2" ] ; then
@@ -103,7 +106,7 @@ pidCheck() {
   if [ -f $PID_FILE ]; then
     old_pid=$(cat $PID_FILE)
     if ps h "${old_pid}" | /usr/bin/grep "$procesName" ; then
-        log "${NAME} already running - exiting (arguments=$*)" 
+        log "${NAME} already running - exiting (arguments=$PID_SCRIPT_ARGUMENTS)" 
         exit 0
     else 
         log "${NAME}: Old pid found with ${old_pid} but process does not exist. Starting anyway, my pid is $$"
@@ -123,7 +126,7 @@ pidCheck() {
 trap killGroup INT
 
 PID=/var/run/md5recurse_unraid.pid
-pidCheck $PID
+pidCheck $PID ""
 
 if [ "$USER" != "root" ]
 then
@@ -244,6 +247,6 @@ fi
 
 ENDTIME=$(date +%s)
 RUNTIME=$(($ENDTIME - $STARTTIME))
-log "Finished: Executed with options '${OPTIONS}' - Execution time ${RUNTIME}s"
+log "$(printf "Finished: Executed with options '${OPTIONS}' - Execution time %02d:%02d:%02d (${RUNTIME}s)" $(($RUNTIME/3600)) $(($RUNTIME%3600/60)) $(($RUNTIME%60)))"
 
 rm $PID
