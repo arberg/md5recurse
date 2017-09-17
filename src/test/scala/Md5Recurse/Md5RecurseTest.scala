@@ -19,6 +19,7 @@ class Md5RecurseTest extends FlatSpec with TestConfig with TestData {
     def doMd5RecursePath(path: Path): Unit = {
       doMd5RecursePath(path.path)
     }
+
     def doMd5RecursePath(path: String): Unit = {
       Md5Recurse.main(commonParams ++ Array(path))
     }
@@ -40,10 +41,10 @@ class Md5RecurseTest extends FlatSpec with TestConfig with TestData {
             files += Md5FileInfo.parseMd5DataLine("dummydir", line).fileName()
           }
         }
-//        println(line)
+        //        println(line)
       }
     }
-//    dirs.foreach(println)
+    //    dirs.foreach(println)
     assert(isSorted(dirs) === true)
   }
 
@@ -60,9 +61,9 @@ class Md5RecurseTest extends FlatSpec with TestConfig with TestData {
         val newFile = newDirectory / c.toString
         newFile.createFile()
         newFile.write(c.toString)
-//        println(newFile.path)
+        //        println(newFile.path)
       }
-//      println(newDirectory.path)
+      //      println(newDirectory.path)
     }
     new CommonInvoker(Array("-g", TEST_EXECUTION_GLOBAL_DIR, "-p", "sorting")) {
       // verify sorting for newly generated global file
@@ -73,8 +74,8 @@ class Md5RecurseTest extends FlatSpec with TestConfig with TestData {
       verifyMd5DataSorting(TEST_EXECUTION_GLOBAL_DIR_PATH / "sorting_global.md5data")
       // verify sorting for global file which is mostly printed from printOutSideScope
       // First line will currently be unsorted
-//      doMd5RecursePath(testDirPath / "a")
-//      verifyMd5DataSorting(TEST_EXECUTION_GLOBAL_DIR_PATH / "sorting_global.md5data")
+      //      doMd5RecursePath(testDirPath / "a")
+      //      verifyMd5DataSorting(TEST_EXECUTION_GLOBAL_DIR_PATH / "sorting_global.md5data")
     }
 
   }
@@ -84,7 +85,7 @@ class Md5RecurseTest extends FlatSpec with TestConfig with TestData {
     val file = testDirPath / "dummy1.log"
     val filePathString = file.toAbsolute.path
     val params = Array("-q", "--globaldir", TEST_EXECUTION_GLOBAL_DIR)
-    val paramsMissing = params :+ "--onlyPrintMissing"
+    val paramsMissing = params :+ "--print-missing"
 
     // Generate global file, then check no missing is printed
     md5Recurse(params :+ testDirPath.path)
@@ -94,6 +95,18 @@ class Md5RecurseTest extends FlatSpec with TestConfig with TestData {
 
     md5RecurseGetOutput(paramsMissing :+ testDirPath.path) should include(s"Missing $filePathString")
     md5RecurseGetOutput(paramsMissing :+ testDirPath.toAbsolute.path) should include(s"Missing $filePathString")
+  }
+
+  "Md5Recurse find missing files without global dir" should "fail" in {
+    val (_, stdErr) = md5RecurseGetOutputAndError(Array("--print-missing", TEST_EXECUTION_DIR), false)
+    stdErr should include("Error: --print-missing requires --globaldir")
+  }
+
+  "Md5Recurse find missing files with local dir" should "warn user local dir is unused" in {
+    val testDirPath = copyTestResources
+    println(testDirPath.path)
+    val (stdOut, _) = md5RecurseGetOutputAndError(Array("--globaldir", TEST_EXECUTION_GLOBAL_DIR, "--print-missing", "--enableLocalMd5Data", testDirPath.path), true)
+    stdOut should include("WARNING: local dir files will not be read when searching for missing files")
   }
 
   "Md5Recurse scan single file" should "update file attribute" in {
@@ -106,12 +119,12 @@ class Md5RecurseTest extends FlatSpec with TestConfig with TestData {
     val globalFile = Path.fromString(TEST_EXECUTION_GLOBAL_DIR) / "_global.md5data"
     val output = md5RecurseGetOutput(Array("-q", "--globaldir", TEST_EXECUTION_GLOBAL_DIR, "-V", "3", testDir.toAbsolute.path))
     assert(ExecutionLog.current.readFileAndGeneratedMd5 == true)
-    output should include ("New") // Verbose print Check we scanned files
+    output should include("New") // Verbose print Check we scanned files
     globalFile.lines()(Codec.UTF8).exists(s => s.contains("/.") || s.contains(File.separator + ".")) should be(false)
 
     val output2 = md5RecurseGetOutput(Array("-q", "--globaldir", TEST_EXECUTION_GLOBAL_DIR, "-V", "3", testDir.toAbsolute.path))
     assert(ExecutionLog.current.readFileAndGeneratedMd5 == false)
-    output2 should include ("Skipped") // Check we scanned files
+    output2 should include("Skipped") // Check we scanned files
   }
 
   "Md5Recurse scan" should "work with filesnames with {}()" in {
@@ -120,7 +133,7 @@ class Md5RecurseTest extends FlatSpec with TestConfig with TestData {
     getAttr(testFile) should be(None)
     md5Recurse(testFile.path)
     assert(ExecutionLog.current.readFileAndGeneratedMd5 == true)
-    getAttr(testFile).get should include ("541c57960bb997942655d14e3b9607f9")
+    getAttr(testFile).get should include("541c57960bb997942655d14e3b9607f9")
   }
 
   "Md5Recurse .disabled_md5" should "not scane subdirs" in {

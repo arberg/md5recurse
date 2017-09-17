@@ -133,9 +133,9 @@ class Md5OptionParser extends scopt.OptionParser[Config]("Md5Recurse") {
             but the new files md5 will be output to md5data file if enabled (permitting manual diff afterwards if
             original is saved elsewhere)""".replaceAll("\n", "").replaceAll("[ ]+", " ").wordWrap(TEXT_WRAP, TEXT_INDENT)
 
-  opt[Unit]("onlyPrintMissing") action { (_, c) =>
+  opt[Unit]("print-missing") action { (_, c) =>
     c.copy(doGenerateNew = false, doPrintMissing = true, writeMd5DataGlobally = false)
-  } text "only print missing (deleted) files. New MD5's will not be generated in this mode, nor will md5data be updated".wordWrap(TEXT_WRAP, TEXT_INDENT)
+  } text "print missing/deleted files based on globaldir set. Local files will not be read. New MD5's will not be generated in this mode, nor will md5data be updated.".wordWrap(TEXT_WRAP, TEXT_INDENT)
 
   opt[File]('g', "globaldir") valueName "<dir>" action { (x, c) =>
     if (!c.doPrintMissing)
@@ -217,6 +217,17 @@ class Md5OptionParser extends scopt.OptionParser[Config]("Md5Recurse") {
     if (!(c.doPrintMissing || !c.doGenerateNew) || (!c.srcDirs.isEmpty && c.readMd5DataPrDirectory || c.md5dataGlobalFolder.isDefined)) success else failure("Please specify directories for md5-generation")
   }
   checkConfig { c =>
+    if (c.doPrintMissing && !c.md5dataGlobalFolder.isDefined) failure("--print-missing requires --globaldir") else success
+  }
+  checkConfig { c =>
+    // read assert logic as !(x => y), thus assert x => y (and x => y is the same as !x || y)
+    // if printing or checking then either global md5 must be enabled or src-folder with local read must be enabled
+    {
+      if (c.doPrintMissing && c.readMd5DataPrDirectory) println("WARNING: local dir files will not be read when searching for missing files");
+      success
+    }
+  }
+  checkConfig { c =>
     // src dirs may only be empty when printing or checking
     if (!c.srcDirs.isEmpty || !c.doGenerateNew) success else failure("Please specify directories for md5-generation")
   }
@@ -236,7 +247,7 @@ object Md5Recurse {
 
   def initNativeLibrary() {
     if (!MD5.initNativeLibrary()) {
-      System.out.println("WARNING: Native library NOT loaded");
+      println("WARNING: Native library NOT loaded");
     }
   }
 
