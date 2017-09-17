@@ -78,8 +78,7 @@ cleanLocalDirMd5FilesWhichHaveBeenMovedBetweenDisks() {
 }
 
 execMd5recurse() {
-	# Memory option: -Xmx1024M sets upper limit on memory available, it will only use so much if needed. If not using --enableReadGlobalMd5 or --global then 256M is enough. JAVA_OPTS is read by scala command.
-	# Note that the md5recurse script now sets the memory option, so we probably cannot overwrite it here
+	# Note that the md5recurse script sets the memory option, so we probably cannot overwrite it here
 	# When executed via crontab we need to set JAVA_HOME directly on this prompt
 	JAVA_HOME=$JAVA_HOME ${MD5RECURSE_EXEC} "$@"
 }
@@ -145,11 +144,11 @@ if [ "$ENABLE_GLOBAL_MD5_FILES" == "1" ] ; then
 fi
 
 if [ "$ENABLE_LOCAL_MD5_FILES" == "1" ] ; then
-	OPTIONS="--enableLocalMd5Data $OPTIONS"
+	OPTIONS="--local $OPTIONS"
 fi
 
 if [ "$ENABLE_LOCAL_MD5SUM_FILES" == "1" ] ; then
-	OPTIONS="--enableLocalMd5Sum $OPTIONS"
+	OPTIONS="--local-md5sum $OPTIONS"
 fi
 
 log "Started with options '${OPTIONS}'"

@@ -19,8 +19,8 @@ trait TestConfig extends FlatSpec with TestHelper {
   val TEST_EXECUTION_DIR_FILE = new File(TEST_EXECUTION_DIR)
   val TEST_EXECUTION_GLOBAL_DIR = TEST_EXECUTION_DIR + "/globalDir"
   val TEST_EXECUTION_GLOBAL_DIR_PATH = Path.fromString(TEST_EXECUTION_DIR + "/globalDir")
-  val SRC_TEST_RES_DIR = "src/test/res/files"
-  private val SRC_TEST_RES_DIR_PATH = Path.fromString(SRC_TEST_RES_DIR)
+  val SRC_TEST_RES_FILES_DIR = "src/test/res/files"
+  private val SRC_TEST_RES_DIR_PATH = Path.fromString(SRC_TEST_RES_FILES_DIR)
 
   def pathContainsFile(path: Path): Boolean = {
     path.children().flatMap(child => if (child.isDirectory) child.children() else List(child)).exists(_.isFile)
@@ -52,13 +52,15 @@ trait TestConfig extends FlatSpec with TestHelper {
 
   def writeFile(filename: String, content: String): Unit = {
     new PrintWriter(filename) {
-      write(content); close
+      write(content);
+      close
     }
   }
 
   def writeFile(filename: File, content: String): Unit = {
     new PrintWriter(filename) {
-      write(content); close
+      write(content);
+      close
     }
   }
 }

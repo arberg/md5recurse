@@ -46,9 +46,9 @@ object FileUtil {
 
   def logFileTimestamps(file: File) {
     val attr = Files.readAttributes(file.toPath, classOf[BasicFileAttributes])
-    System.out.println("creationTime: " + attr.creationTime)
-    System.out.println("lastAccessTime: " + attr.lastAccessTime)
-    System.out.println("lastModifiedTime: " + attr.lastModifiedTime)
+    Console.out.println("creationTime: " + attr.creationTime)
+    Console.out.println("lastAccessTime: " + attr.lastAccessTime)
+    Console.out.println("lastModifiedTime: " + attr.lastModifiedTime)
   }
 
   def attrView(file: File): UserDefinedFileAttributeView = {

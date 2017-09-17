@@ -109,7 +109,7 @@ trait TestHelper extends FlatSpec with Matchers {
     val output = streamOut.toString
     val error = streamErr.toString
     if (doEcho) print(output)
-    if (doEcho) System.err.print(error)
+    if (doEcho) Console.err.print(error)
     (output, error)
   }
 

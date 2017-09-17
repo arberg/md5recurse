@@ -56,8 +56,10 @@ case class Config(
                    //  verboseMd5Sum: Boolean = false,
                    quiet: Boolean = false,
                    doVerify: Boolean = false,
+                   doVerifyModified: Boolean = false,
                    doGenerateNew: Boolean = true,
                    doPrintMissing: Boolean = false, // requires doGenerateNew=false to work properly
+                   doPrintModified: Boolean = false,
 
                    //  excludePattern : String = ".*/.md5data",
                    md5DataGlobalFileName: String = "_global.md5data",
@@ -120,22 +122,29 @@ class Md5OptionParser extends scopt.OptionParser[Config]("Md5Recurse") {
     c.copy(srcDirs = c.srcDirs :+ x.getCanonicalFile)
   } text "dirs on which to execute recursive MD5 generation or with --check then recurse MD5 check\n"
 
-  opt[Unit]("force") action { (_, c) =>
+  opt[Unit]("reread-all") action { (_, c) =>
     c.copy(doVerify = true)
   } text "force read and regen md5 of existing unmodified files and compare with last recorded md5, and print warning for all mismatching files (will write to stderr or globaldir)".wordWrap(TEXT_WRAP, TEXT_INDENT)
 
   opt[Unit]('c', "check") action { (_, c) =>
     c.copy(doVerify = true, doGenerateNew = false)
   } text
-    """only check MD5 of existing files with same modification timestamp and print
-            warning if file content changed, do not scan new files or files with modified timestamp. Output is still written to
-            global and/or local md5data files (overwriting input). A file with newer timestamp will not be MD5-compared,
-            but the new files md5 will be output to md5data file if enabled (permitting manual diff afterwards if
-            original is saved elsewhere)""".replaceAll("\n", "").replaceAll("[ ]+", " ").wordWrap(TEXT_WRAP, TEXT_INDENT)
+    """verify MD5 of existing unmodified files, ie. files with same modification timestamp as the timestamp of the previous hash. Prints
+            warning if file content changed. Does not scan new files or files with modified timestamp. Updated hash values are written to
+            global and/or local md5data files (overwriting input). Hashes but no warnings will be generated for files with newer timestamp.""".replaceAll("\n", "").replaceAll("[ ]+", " ").wordWrap(TEXT_WRAP, TEXT_INDENT)
+
+  opt[Unit]("check-all") action { (_, c) =>
+    c.copy(doVerify = true, doVerifyModified = true, doGenerateNew = false)
+  } text
+    """verify MD5 of all files even files with newer timestamps. Prints warning if file content changed. Updated hash values are written to md5data storage. """.replaceAll("\n", "").replaceAll("[ ]+", " ").wordWrap(TEXT_WRAP, TEXT_INDENT)
 
   opt[Unit]("print-missing") action { (_, c) =>
     c.copy(doGenerateNew = false, doPrintMissing = true, writeMd5DataGlobally = false)
   } text "print missing/deleted files based on globaldir set. Local files will not be read. New MD5's will not be generated in this mode, nor will md5data be updated.".wordWrap(TEXT_WRAP, TEXT_INDENT)
+
+  opt[Unit]("print-modified") action { (_, c) =>
+    c.copy(doPrintModified = true)
+  } text "print filenames with modified timestamp.".wordWrap(TEXT_WRAP, TEXT_INDENT)
 
   opt[File]('g', "globaldir") valueName "<dir>" action { (x, c) =>
     if (!c.doPrintMissing)
@@ -144,15 +153,15 @@ class Md5OptionParser extends scopt.OptionParser[Config]("Md5Recurse") {
       c.copy(md5dataGlobalFolder = Some(x))
   } text "The directory to store the global MD5 info in a flat file. Note with global enabled missing MD5's will still be read from local in each directory file if such files exists".wordWrap(TEXT_WRAP, TEXT_INDENT)
 
-  opt[Unit]("enableLocalMd5Data") action { (x, c) =>
+  opt[Unit]("local") action { (x, c) =>
     c.copy(readMd5DataPrDirectory = true, writeMd5DataPrDirectory = true)
   } text "Enable reading and writing Md5Data files locally in each directory "
 
-  opt[Unit]("enableLocalMd5Sum") action { (x, c) =>
+  opt[Unit]("local-md5sum") action { (x, c) =>
     c.copy(writeMd5SumPrDirectory = true)
   } text "Enable writing md5sum files locally in each directory. These files will not be read by this program for MD5-data."
 
-  opt[Unit]("alwaysUpdateLocal") action { (x, c) =>
+  opt[Unit]("local-update-all") action { (x, c) =>
     c.copy(alwaysUpdateLocal = true)
   } text "Always updates local files and attributes (when enabled) even if no changes found in files in directory"
 
@@ -168,7 +177,7 @@ class Md5OptionParser extends scopt.OptionParser[Config]("Md5Recurse") {
     c.copy(deleteMd5 = true)
   } text "recursively delete local/pr directory MD5 sum files (both .md5data and .md5sum). All hash-generation is disabled when this option is applied".wordWrap(TEXT_WRAP, TEXT_INDENT)
 
-  opt[Unit]('i', "ignoreError") action { (_, c) =>
+  opt[Unit]('i', "ignore-errors") action { (_, c) =>
     c.copy(continueOnError = true)
   } text "continue on errors and log to file"
 
@@ -231,6 +240,11 @@ class Md5OptionParser extends scopt.OptionParser[Config]("Md5Recurse") {
     // src dirs may only be empty when printing or checking
     if (!c.srcDirs.isEmpty || !c.doGenerateNew) success else failure("Please specify directories for md5-generation")
   }
+  checkConfig { c =>
+    // src dirs may only be empty when printing or checking
+    if (c.quiet && c.logMd5Scans) println("Quiet and verbose specified at the same time")
+    success
+  }
 }
 
 object Md5Recurse {
@@ -257,7 +271,7 @@ object Md5Recurse {
       val hash = MD5.asHex(MD5.getHash(new File(filepath)))
       Some(new Md5SumInfo(hash, true, filepath))
     } catch {
-      case e: java.io.IOException => System.err.println("Unable to read file: " + e.getMessage); System.err.flush(); None
+      case e: java.io.IOException => Console.err.println("Unable to read file: " + e.getMessage); Console.err.flush(); None
     }
   }
 
@@ -296,16 +310,16 @@ object Md5Recurse {
                 case _ => throw exception
               }
             case e: java.io.IOException =>
-              System.err.println("Unable to write file " + path.path + ": " + e.getMessage)
-              System.err.flush()
+              Console.err.println("Unable to write file " + path.path + ": " + e.getMessage)
+              Console.err.flush()
           }
           //        } // end equal
       } else if (file.exists) {
         if (!file.delete()) println("Failed to delete " + file)
       }
     } catch {
-      case e: scalax.io.ScalaIOException => System.err.println("Error occurred writing file: " + file)
-      case e: FileNotFoundException => System.err.println("Unable to create file: " + file)
+      case e: scalax.io.ScalaIOException => Console.err.println("Error occurred writing file: " + file)
+      case e: FileNotFoundException => Console.err.println("Unable to create file: " + file)
     }
   }
 
@@ -340,7 +354,7 @@ object Md5Recurse {
       for (md5 <- md5s) {
         println(md5.exportMd5Line);
       }
-      System.out.flush
+      Console.out.flush
     }
   }
 
@@ -473,8 +487,10 @@ object Md5Recurse {
           println("Cur lastMod=" + currentFileInfo.getLastModified() + ", len=" + recordedFileInfo.getSize())
           println("Rec lastMod=" + recordedFileInfo.getLastModified() + ", len=" + recordedFileInfo.getSize() + ", md5=" + recordedMd5Info.md5String)
         }
-        if (currentFileInfo.getLastModified() == recordedFileInfo.getLastModified()) {
-          //  still check if filesize change, to generate new md5
+        val isFileTimestampIdentical = currentFileInfo.getLastModified() == recordedFileInfo.getLastModified()
+        if (isFileTimestampIdentical && Config.it.doPrintModified) println("Modified " + f)
+        if (isFileTimestampIdentical || Config.it.doVerifyModified) {
+          //  still check if file size change, to generate new md5
           if (Config.it.doVerify) {
             val fInfoMd5Option = Md5FileInfo.readFileGenerateMd5Sum(f, config.useFileAttributes)
             if (!fInfoMd5Option.isDefined) {
@@ -482,9 +498,11 @@ object Md5Recurse {
             } else {
               val fInfoMd5 = fInfoMd5Option.get
               if (fInfoMd5.md5String != recordedMd5Info.md5String) {
-                val msg = "Failed verification: original=" + recordedMd5Info.md5String + " current=" + fInfoMd5.md5String + " " + fInfoMd5.filePath
-                if (!Config.it.quiet)
-                  System.err.println(msg)
+                val msgPrefix = if (isFileTimestampIdentical) "" else " but with modified timestamp"
+                val msg = s"Failed verification$msgPrefix: original=" + recordedMd5Info.md5String + " current=" + fInfoMd5.md5String + " " + fInfoMd5.filePath
+                if (!Config.it.quiet) {
+                  Console.err.print(msg)
+                }
                 failureMsgs += msg
                 failures += recordedMd5Info
               } else {
@@ -494,7 +512,7 @@ object Md5Recurse {
             }
           } else {
             // Old non-verified file
-            if (config.logMd5ScansAndSkipped) println("Skipped " + f)
+            if (config.logMd5ScansAndSkipped) println("Hash exists with matching file timestamp, file read skipped: " + f)
             if (config.useFileAttributes && config.alwaysUpdateLocal) Md5FileInfo.updateMd5FileAttribute(f, recordedMd5Info)
             md5s += recordedMd5Info // timestamp updated on windows NTFS if fileAttributes written
           }
@@ -613,7 +631,7 @@ object Md5Recurse {
         if (dirOrFile.isDirectory()) {
           val dir = dirOrFile
           if (dir.listFiles == null) {
-            System.err.println("Unable to read dir, permission denied or io error: " + dir.getPath)
+            Console.err.println("Unable to read dir, permission denied or io error: " + dir.getPath)
           } else if (!isDirDisabled(dir)) {
             val (md5s, failureMd5s, failureMessages, isFileUpdated, greatestLastModifiedTimestampInDir) = verifyAndGenerateMd5ForDirectoryNonRecursive(dir, fileSet.removeDir(dir))
             postScan(dir, md5s, failureMd5s, failureMessages, isFileUpdated, greatestLastModifiedTimestampInDir)

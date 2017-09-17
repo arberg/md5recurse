@@ -90,7 +90,7 @@ class LocalFileUpdateTest extends FlatSpec with TestConfig with TestData {
       runMd5Recurse()
       //      localMd5FilePath.lines().foreach(println(_))
       println(localMd5FilePath.path)
-      if (md5ToolParam.contains("--enableLocalMd5Data"))
+      if (md5ToolParam.contains("--local"))
         localMd5FilePath.lastModified should be(localMd5LastModified)
       else
         localMd5FilePath.lastModified should not be(localMd5LastModified)
@@ -113,10 +113,10 @@ class LocalFileUpdateTest extends FlatSpec with TestConfig with TestData {
       localMd5FilePath.exists should be(false)
     }
 
-    testLocalFileWrittenAndNotUpdated(MD5SUM_EXT, Array("--enableLocalMd5Sum"))
-    testLocalFileWrittenAndNotUpdated(MD5DATA_EXT, Array("--enableLocalMd5Data"))
-    testLocalFileWrittenAndNotUpdated(MD5DATA_EXT, Array("--enableLocalMd5Data", "--print"))
-    testLocalFileWrittenAndNotUpdated(MD5SUM_EXT, Array("--enableLocalMd5Sum", "--print"))
+    testLocalFileWrittenAndNotUpdated(MD5SUM_EXT, Array("--local-md5sum"))
+    testLocalFileWrittenAndNotUpdated(MD5DATA_EXT, Array("--local"))
+    testLocalFileWrittenAndNotUpdated(MD5DATA_EXT, Array("--local", "--print"))
+    testLocalFileWrittenAndNotUpdated(MD5SUM_EXT, Array("--local-md5sum", "--print"))
   }
 
   "With disabled fileAttributes" should "not read or write fileAttributes" in {
@@ -127,13 +127,13 @@ class LocalFileUpdateTest extends FlatSpec with TestConfig with TestData {
     localMd5FilePath.exists should be(false)
 
     deleteMd5FileAttributes(testDirPath)
-    // Should fail with info 'Error: Please choose storage to read from (--disableReadGlobalMd5 requires --enableLocalMd5Data)'
+    // Should fail with info 'Error: Please choose storage to read from (--disableReadGlobalMd5 requires --local)'
     //Md5Recurse.main(Array("--disable-file-attributes", testDirPath.path))
     val (_, errorNoStorage) = md5RecurseGetOutputAndError(Array("--disable-file-attributes", filepath.path))
     errorNoStorage should include("Error: Please choose storage to read from")
 
     setMd5FileAttributes(filepath, "dddddddddddddddddddddddddddddddd 1 1492717460 200")
-    Md5Recurse.main(Array("--disable-file-attributes", "--enableLocalMd5Data", filepath.path))
+    Md5Recurse.main(Array("--disable-file-attributes", "--local", filepath.path))
     validateAttr(filepath, "dddddddddddddddddddddddddddddddd") // File attribute should still contain our dummy value
     localMd5FilePath.exists should be(true)
     //localMd5FilePath.lines().foreach(f => println(f))
@@ -153,7 +153,7 @@ class LocalFileUpdateTest extends FlatSpec with TestConfig with TestData {
   //
   //    deleteMd5FileAttributes(testDirPath)
   //    // bug local file and global file date is incorrect when attribute is updated
-  //    val md5Params = Array("-g", testDirPath.path, "--enableLocalMd5Data", filepath.path)
+  //    val md5Params = Array("-g", testDirPath.path, "--local", filepath.path)
   //    println(testDirPath.path)
   //    println(1)
   //    Md5Recurse.main(md5Params)
@@ -194,7 +194,7 @@ class LocalFileUpdateTest extends FlatSpec with TestConfig with TestData {
 
     repeatTest(Array("-V", "1", filepath.path))
     repeatTest(Array("-g", testDirPath.path, filepath.path))
-    repeatTest(Array("-V", "1", "--enableLocalMd5Data", filepath.path))
+    repeatTest(Array("-V", "1", "--local", filepath.path))
   }
 
   "With enabled fileAttributes" should "a renamed file should not be rescanned" in {
@@ -241,7 +241,7 @@ class LocalFileUpdateTest extends FlatSpec with TestConfig with TestData {
         localMd5FilePath.lines()(Codec.UTF8).exists(_.contains("danish_øæåØÆÅ")) should be(theCodec == Codec.UTF8)
       }
 
-      val commonParams = Array("--alwaysUpdateLocal", testDirPath.path)
+      val commonParams = Array("--local-update-all", testDirPath.path)
       deleteMd5FileAttributes(testDirPath)
       Md5Recurse.main(md5ToolParam ++ commonParams)
       verify("UTF-8 default", Codec.UTF8)
@@ -253,10 +253,10 @@ class LocalFileUpdateTest extends FlatSpec with TestConfig with TestData {
       verify("UTF-16 specified", if (expectForcedUTF8) Codec.UTF8 else Codec("UTF-16"))
     }
 
-    testLocalFileWrittenInEncoding(MD5DATA_EXT, Array("--enableLocalMd5Data"), true)
-    testLocalFileWrittenInEncoding(MD5SUM_EXT, Array("--enableLocalMd5Sum"), false)
-    testLocalFileWrittenInEncoding(MD5DATA_EXT, Array("--enableLocalMd5Data", "--print"), true)
-    testLocalFileWrittenInEncoding(MD5SUM_EXT, Array("--enableLocalMd5Sum", "--print"), false)
+    testLocalFileWrittenInEncoding(MD5DATA_EXT, Array("--local"), true)
+    testLocalFileWrittenInEncoding(MD5SUM_EXT, Array("--local-md5sum"), false)
+    testLocalFileWrittenInEncoding(MD5DATA_EXT, Array("--local", "--print"), true)
+    testLocalFileWrittenInEncoding(MD5SUM_EXT, Array("--local-md5sum", "--print"), false)
   }
 
   "encoding" should "write .md5 files files with BOM or not BOM" in {
@@ -267,21 +267,21 @@ class LocalFileUpdateTest extends FlatSpec with TestConfig with TestData {
     localMd5FilePath.exists should be(false)
 
     deleteMd5FileAttributes(testDirPath)
-    //    Md5Recurse.main(Array("--enableLocalMd5Sum", "--enableLocalMd5Data", "-e", "ISO-8859-1", "--globaldir", TEST_EXECUTION_GLOBAL_DIR, testDirPath.path))
-    Md5Recurse.main(Array("--enableLocalMd5Sum", "--enableLocalMd5Data", "-e", "UTF-8-BOM", "--globaldir", TEST_EXECUTION_GLOBAL_DIR, testDirPath.path))
+    //    Md5Recurse.main(Array("--local-md5sum", "--local", "-e", "ISO-8859-1", "--globaldir", TEST_EXECUTION_GLOBAL_DIR, testDirPath.path))
+    Md5Recurse.main(Array("--local-md5sum", "--local", "-e", "UTF-8-BOM", "--globaldir", TEST_EXECUTION_GLOBAL_DIR, testDirPath.path))
     withClue(localMd5FilePath) {
       localMd5FilePath.exists should be(true)
     }
     localMd5FilePath.lines().filter(_.contains("\uFEFF")).size >= 1 should be(true)
 
     localMd5FilePath.delete()
-    Md5Recurse.main(Array("--enableLocalMd5Sum", "--enableLocalMd5Data", "-e", "UTF-8", "--globaldir", TEST_EXECUTION_GLOBAL_DIR, testDirPath.path))
+    Md5Recurse.main(Array("--local-md5sum", "--local", "-e", "UTF-8", "--globaldir", TEST_EXECUTION_GLOBAL_DIR, testDirPath.path))
     localMd5FilePath.exists should be(true)
     localMd5FilePath.lines().foreach(println(_))
     localMd5FilePath.lines().filter(_.contains("\uFEFF")).isEmpty should be(true)
 
     localMd5FilePath.delete()
-    Md5Recurse.main(Array("--enableLocalMd5Sum", "--enableLocalMd5Data", "-e", "ISO-8859-1", "--globaldir", TEST_EXECUTION_GLOBAL_DIR, testDirPath.path))
+    Md5Recurse.main(Array("--local-md5sum", "--local", "-e", "ISO-8859-1", "--globaldir", TEST_EXECUTION_GLOBAL_DIR, testDirPath.path))
     localMd5FilePath.exists should be(true)
     localMd5FilePath.lines().foreach(println(_))
     localMd5FilePath.lines().filter(_.contains("\uFEFF")).isEmpty should be(true)

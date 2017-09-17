@@ -35,6 +35,6 @@ The Md5Recurse programs needs Java 1.8 or newer installed, and probably JAVA_HOM
 
 Build
 ==========
-The projects is built with gradle. Run `gradle build`
+The projects is built with gradle. Run `gradle build`. Distribution will be placed in build\distributions.
 
 The project can be imported into IntelliJ using IntelliJ import command. Choose import as Gradle project.
