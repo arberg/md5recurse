@@ -6,6 +6,7 @@ import java.nio.file.attribute.UserDefinedFileAttributeView
 
 import scala.collection.Map
 import scala.io.Source
+import scalax.file.Path
 //import scalax.file
 //import scalax.file.{FileSystem, Path}
 //
@@ -118,7 +119,11 @@ object Md5FileInfo {
         if (line.startsWith(">")) {
           // New directory
           currentDir = line.substring(1)
-          fileList = dirToFileMap.getOrCreateDir(currentDir)
+          // Converting to absolute dir has a tiny performance price. It makes scanning an 82MB global file with 122.000 dirs take 1.6 sec instead of 0.7 sec.
+          // It makes possible for a user to modify global files without to much care about getting slashes and absolute paths correct in string+case comparison perfect
+          // This absolute conversion has only been done on the directory not the files in the directory
+          val convertedCurrentDir = Path.fromString(currentDir).toAbsolute.path
+          fileList = dirToFileMap.getOrCreateDir(convertedCurrentDir)
         } else {
           // New file
           fileList.addToList(line)

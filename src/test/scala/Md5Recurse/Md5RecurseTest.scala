@@ -106,6 +106,36 @@ class Md5RecurseTest extends FlatSpec with TestConfig with TestData {
     assertOutput(md5RecurseGetOutput(paramsMissing :+ testDirPath.toAbsolute.path))
   }
 
+  "Md5Recurse global file with slashes on windows" should "be parsed correctly" in {
+    val testDirPath = copyTestResources / "simple"
+    val params = Array("--globaldir", TEST_EXECUTION_GLOBAL_DIR, "--disable-file-attributes", "-V", "3", testDirPath.path)
+
+    println("--------------- Md5Recurse initial run:")
+    md5Recurse(params) // Generate initial
+    println()
+
+    val globalFile = Path.fromString(TEST_EXECUTION_GLOBAL_DIR) / "_global.md5data"
+    // Read entire file
+    val globalFileContent = globalFile.string(Codec.UTF8)
+    println("--------------- Unmodified global file:")
+    println(globalFileContent)
+    val globalFileContentWithSlashes = globalFileContent.replace("\\", "/")
+    println("--------------- Hacked global file:")
+    println(globalFileContentWithSlashes)
+    globalFile.write(globalFileContentWithSlashes)(Codec.UTF8)
+
+    println("--------------- Md5Recurse on modified global file with slashes:")
+    md5RecurseGetOutput(params, true) should not include ("New")
+
+    val globalFileContentWithSlashesWithoutDrive = globalFileContentWithSlashes.replaceAll(">.:/", ">/")
+    println("--------------- Hacked global file2:")
+    println(globalFileContentWithSlashesWithoutDrive)
+    globalFile.write(globalFileContentWithSlashesWithoutDrive)(Codec.UTF8)
+
+    println("--------------- Md5Recurse on modified global file with slashes or drive:")
+    md5RecurseGetOutput(params, true) should not include ("New")
+  }
+
   "Md5Recurse find missing files without global dir" should "fail" in {
     val (_, stdErr) = md5RecurseGetOutputAndError(Array("--print-missing", TEST_EXECUTION_DIR), false)
     stdErr should include("Error: --print-missing requires --globaldir")
