@@ -489,7 +489,7 @@ object Md5Recurse {
           println("Rec lastMod=" + recordedFileInfo.getLastModified() + ", len=" + recordedFileInfo.getSize() + ", md5=" + recordedMd5Info.md5String)
         }
         val isFileTimestampIdentical = currentFileInfo.getLastModified() == recordedFileInfo.getLastModified()
-        if (isFileTimestampIdentical && Config.it.doPrintModified) println("Modified " + f)
+        if (!isFileTimestampIdentical && Config.it.doPrintModified) println("Modified " + f)
         if (isFileTimestampIdentical || Config.it.doVerifyModified) {
           //  still check if file size change, to generate new md5
           if (Config.it.doVerify) {

@@ -223,13 +223,13 @@ class Md5RecurseTest extends FlatSpec with TestConfig with TestData {
   "Md5Recurse --print-modified" should "print modified filenames" in {
     val testDir = copyTestResources / "simple"
     val params = Array("-q", "--globaldir", TEST_EXECUTION_GLOBAL_DIR, "--print-modified", testDir.path)
-    md5Recurse(params)
-    (testDir / "dummy1a.log").write("new content")
-    val output = md5RecurseGetOutput(params, true)
-
     val file = testDir / "simple.log"
     val filePathString = file.toAbsolute.path
-    output should include("Modified " + filePathString)
+
+    md5Recurse(params)
+    (testDir / "simple.log").write("new content")
+    md5RecurseGetOutput(params, true) should include("Modified " + filePathString)
+    md5RecurseGetOutput(params, true) should not include("Modified " + filePathString)
   }
 
   "Md5Recurse scan" should "work with filesnames with {}()" in {
