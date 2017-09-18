@@ -136,6 +136,39 @@ class Md5RecurseTest extends FlatSpec with TestConfig with TestData {
     md5RecurseGetOutput(params, true) should not include ("New")
   }
 
+
+  def runMd5AndCheckGeneratedAndDeletedLocalFiles(testDirPath:Path, md5dataFilename: String, params: Array[String]): Unit = {
+    val subDir = testDirPath / "sub" / "lastSub"
+
+    println("--------------- Md5Recurse initial run:")
+    md5Recurse(params) // Generate initial
+    println()
+
+    val localFileWhichShouldBeDeleted = testDirPath / md5dataFilename
+    localFileWhichShouldBeDeleted.exists should be(true)
+    val localFileWhichShouldBeDeleted2 = subDir / md5dataFilename
+    localFileWhichShouldBeDeleted2.exists should be(true)
+
+    val disableMd5Path = testDirPath / ".disable_md5"
+    disableMd5Path.write("")
+    disableMd5Path.exists should be(true)
+
+    md5Recurse(params) // Generate initial
+
+    localFileWhichShouldBeDeleted.exists should be(false)
+    localFileWhichShouldBeDeleted2.exists should be(false)
+  }
+
+  "Md5Recurse disabled md5 with local data in dir" should "delete old local md5data file" in {
+    val testDirPath = copyTestResources
+    runMd5AndCheckGeneratedAndDeletedLocalFiles(testDirPath, ".user.md5data", Array("--local", "--disable-file-attributes", "-p", "user", "-V", "3", testDirPath.path))
+  }
+
+  "Md5Recurse disabled md5 with local data in dir" should "delete old local md5sum file" in {
+    val testDirPath = copyTestResources
+    runMd5AndCheckGeneratedAndDeletedLocalFiles(testDirPath, ".user.md5", Array("--local-md5sum", "-p", "user", "-V", "2", testDirPath.path))
+  }
+
   "Md5Recurse find missing files without global dir" should "fail" in {
     val (_, stdErr) = md5RecurseGetOutputAndError(Array("--print-missing", TEST_EXECUTION_DIR), false)
     stdErr should include("Error: --print-missing requires --globaldir")
