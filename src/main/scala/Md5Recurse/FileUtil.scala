@@ -2,7 +2,7 @@ package Md5Recurse
 
 import java.io.{File, FileInputStream}
 import java.nio.ByteBuffer
-import java.nio.file.Files
+import java.nio.file.{Files, LinkOption, Paths}
 import java.nio.file.attribute.{BasicFileAttributes, UserDefinedFileAttributeView}
 
 import scala.collection.{Iterable, Iterator}
@@ -11,6 +11,21 @@ import scala.collection.{Iterable, Iterator}
   * Created by Alex on 20-08-2016.
   */
 object FileUtil {
+  /** returns true if junction / reparsePoint */
+  def isWinHardLink(file: File) = {
+    val path = Paths.get(file.getAbsolutePath)
+    val attr = Files.readAttributes(path, classOf[BasicFileAttributes], LinkOption.NOFOLLOW_LINKS)
+    import java.nio.file.attribute.DosFileAttributes
+    var isReparsePoint = false
+    if (classOf[DosFileAttributes].isInstance(attr)) try {
+      val m = attr.getClass.getDeclaredMethod("isReparsePoint")
+      m.setAccessible(true)
+      isReparsePoint = m.invoke(attr).asInstanceOf[Boolean]
+    } catch {
+      case e: Exception => println("Failed to read if link " + file)
+    }
+    isReparsePoint
+  }
 
   def isSymLink(file: File) = {
     val canon =
@@ -58,41 +73,52 @@ object FileUtil {
   def doWithLockedFile[T](file: File, onFailureResponse: T)(supplier: () => T): T = {
     // Lock the file so others cannot write file, while we read it to generate MD5 and then write fileAttribute
     // We don't need the lock on linux, unless the filesystem is mounted NTFS I think. Its probably filesystem dependent not OS dependent.
-    val in = new FileInputStream(file);
     try {
-      val lock = in.getChannel().tryLock(0L, Long.MaxValue, true)
-      if (lock != null) {
-        try {
-          supplier.apply()
-        } finally {
-          lock.release();
+      val in = new FileInputStream(file);
+      try {
+        val lock = in.getChannel().tryLock(0L, Long.MaxValue, true)
+        if (lock != null) {
+          try {
+            supplier.apply()
+          } finally {
+            lock.release();
+          }
+        } else {
+          System.err.println("Failed to lock file for reading: " + file)
+          onFailureResponse
         }
-      } else {
+      } finally {
+        in.close();
+      }
+    } catch {
+      case ioe: java.io.IOException => {
         System.err.println("Failed to lock file for reading: " + file)
         onFailureResponse
       }
-    } finally {
-      in.close();
     }
   }
 
   def doWithLockedFile[T](file: File)(supplier: () => Unit) {
     // Lock the file so others cannot write file, while we read it to generate MD5 and then write fileAttribute
     // We don't need the lock on linux, unless the filesystem is mounted NTFS I think. Its probably filesystem dependent not OS dependent.
-    val in = new FileInputStream(file);
     try {
-      val lock = in.getChannel().tryLock(0L, Long.MaxValue, true)
-      if (lock != null) {
-        try {
-          supplier.apply()
-        } finally {
-          lock.release();
+      val in = new FileInputStream(file);
+      try {
+        val lock = in.getChannel().tryLock(0L, Long.MaxValue, true)
+        if (lock != null) {
+          try {
+            supplier.apply()
+          } finally {
+            lock.release();
+          }
+        } else {
+          System.err.println("Failed to lock file for reading: " + file)
         }
-      } else {
-        System.err.println("Failed to lock file for reading: " + file)
+      } finally {
+        in.close();
       }
-    } finally {
-      in.close();
+    } catch {
+      case ioe: java.io.IOException => System.err.println("Failed to lock file for reading: " + file)
     }
   }
 

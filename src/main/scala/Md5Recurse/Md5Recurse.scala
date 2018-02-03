@@ -1,6 +1,7 @@
 package Md5Recurse
 
 import java.io.{File, FileNotFoundException, PrintWriter}
+import java.nio.file.Paths
 import java.security.MessageDigest
 import java.text.SimpleDateFormat
 import java.util.Calendar
@@ -75,7 +76,6 @@ case class Config(
                    writeMd5DataPrDirectory: Boolean = false,
                    writeMd5SumPrDirectory: Boolean = false,
                    alwaysUpdateLocal: Boolean = false,
-                   continueOnError: Boolean = false,
                    printMd5: Boolean = false,
                    useFileAttributes: Boolean = true) {
 
@@ -107,7 +107,7 @@ case class Config(
 class Md5OptionParser extends scopt.OptionParser[Config]("Md5Recurse") {
   val TEXT_WRAP = 100
   val TEXT_INDENT = 27
-  head("Md5Recurse", "version 1.0")
+  head("Md5Recurse", "version 1.1")
 
   note(("Md5Recurse generates MD5 hashes for files recursively within directories or on single files. Data is written to file attributes by default, " +
     "and can also be written with local files in each directory or to a single global file. It is fastest to access a single file, so if enabled md5data will be read from " +
@@ -177,10 +177,6 @@ class Md5OptionParser extends scopt.OptionParser[Config]("Md5Recurse") {
   opt[Unit]("deletemd5") action { (_, c) =>
     c.copy(deleteMd5 = true)
   } text "recursively delete local/pr directory MD5 sum files (both .md5data and .md5sum). All hash-generation is disabled when this option is applied".wordWrap(TEXT_WRAP, TEXT_INDENT)
-
-  opt[Unit]('i', "ignore-errors") action { (_, c) =>
-    c.copy(continueOnError = true)
-  } text "continue on errors and log to file"
 
   opt[String]('e', "encoding") valueName "<charset>" action { (x, c) =>
     if (x == "UTF-8-BOM") {
@@ -635,7 +631,8 @@ object Md5Recurse {
       if (dirOrFile.isDirectory()) {
         val dir = dirOrFile
         if (dir.listFiles == null) {
-          Console.err.println("Unable to read dir, permission denied or io error: " + dir.getPath)
+          if (!Sys.isWin || !FileUtil.isWinHardLink(dirOrFile)) // Ignore errors on hard links
+            Console.err.println("Unable to read dir, permission denied or io error: " + dir.getPath)
         } else if (!isDirDisabled(dir)) {
           val (md5s, failureMd5s, failureMessages, isFileUpdated, greatestLastModifiedTimestampInDir) = verifyAndGenerateMd5ForDirectoryNonRecursive(dir, fileSet.removeDir(dir))
           postScan(dir, md5s, failureMd5s, failureMessages, isFileUpdated, greatestLastModifiedTimestampInDir)
