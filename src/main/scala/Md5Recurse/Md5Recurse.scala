@@ -76,6 +76,7 @@ case class Config(
                    writeMd5DataPrDirectory: Boolean = false,
                    writeMd5SumPrDirectory: Boolean = false,
                    alwaysUpdateLocal: Boolean = false,
+                   silenceWarnings: Boolean = false,
                    printMd5: Boolean = false,
                    useFileAttributes: Boolean = true) {
 
@@ -177,6 +178,10 @@ class Md5OptionParser extends scopt.OptionParser[Config]("Md5Recurse") {
   opt[Unit]("deletemd5") action { (_, c) =>
     c.copy(deleteMd5 = true)
   } text "recursively delete local/pr directory MD5 sum files (both .md5data and .md5sum). All hash-generation is disabled when this option is applied".wordWrap(TEXT_WRAP, TEXT_INDENT)
+
+  opt[Unit]("silence-warnings") action { (_, c) =>
+    c.copy(silenceWarnings = true)
+  } text "don't print warnings for files which could not be read or where file attributes could not be updated"
 
   opt[String]('e', "encoding") valueName "<charset>" action { (x, c) =>
     if (x == "UTF-8-BOM") {
@@ -634,7 +639,7 @@ object Md5Recurse {
         val dir = dirOrFile
         if (dir.listFiles == null) {
           if (!Sys.isWin || !FileUtil.isWinHardLink(dirOrFile)) // Ignore errors on hard links
-            Console.err.println("Unable to read dir, permission denied or io error: " + dir.getPath)
+            if (!Config.it.silenceWarnings) Console.err.println("Unable to read dir, permission denied or io error: " + dir.getPath)
         } else if (!isDirDisabled(dir)) {
           val (md5s, failureMd5s, failureMessages, isFileUpdated, greatestLastModifiedTimestampInDir) = verifyAndGenerateMd5ForDirectoryNonRecursive(dir, fileSet.removeDir(dir))
           postScan(dir, md5s, failureMd5s, failureMessages, isFileUpdated, greatestLastModifiedTimestampInDir)
@@ -707,6 +712,7 @@ object Md5Recurse {
     parser.parse(args, Config()) map {
       config =>
         Config.it = config
+        FileUtil.silenceReadErrors = config.silenceWarnings
         for (d <- config.srcDirs if !d.exists()) {
           if (!config.quiet) println("Src folder does not exist: " + d)
         }
