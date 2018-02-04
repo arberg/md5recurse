@@ -107,7 +107,7 @@ case class Config(
 class Md5OptionParser extends scopt.OptionParser[Config]("Md5Recurse") {
   val TEXT_WRAP = 100
   val TEXT_INDENT = 27
-  head("Md5Recurse", "version 1.1")
+  head("Md5Recurse", "version 1.0.1")
 
   note(("Md5Recurse generates MD5 hashes for files recursively within directories or on single files. Data is written to file attributes by default, " +
     "and can also be written with local files in each directory or to a single global file. It is fastest to access a single file, so if enabled md5data will be read from " +
@@ -431,7 +431,9 @@ object Md5Recurse {
     // loop files (exclude *.md5data and *.md5)
     for (f <- files if f.isFile() if !f.getName.endsWith(Config.it.md5DataExtension()) if !f.getName.endsWith(Config.it.md5SumExtension()) if !FileUtil.isSymLink(f)) {
 
-      def generateMd5(debugInfo: String) = {
+
+      def generateMd5(isFileSeenBefore: Boolean) = {
+        val debugInfo = if (isFileSeenBefore) "Generate " else "New "
         isFileUpdated = true
         val fInfoMd5Option = Md5FileInfo.readFileGenerateMd5Sum(f, config.useFileAttributes)
         if (!fInfoMd5Option.isDefined) {
@@ -515,11 +517,11 @@ object Md5Recurse {
           }
         } else {
           // File with modified lastModified
-          generateMd5("Generate ")
+          generateMd5(true)
         }
       } else {
         // New file
-        if (config.doGenerateNew) generateMd5("New      ")
+        if (config.doGenerateNew) generateMd5(false)
       }
     }
     (md5s.toList, failures.toList, failureMsgs.toList, isFileUpdated, greatestLastModifiedTimestampInDir)
