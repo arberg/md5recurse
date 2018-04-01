@@ -290,7 +290,6 @@ class LocalFileUpdateTest extends FlatSpec with TestConfig with TestData {
     localMd5FilePath.exists should be(false)
 
     deleteMd5FileAttributes(testDirPath)
-    //    Md5Recurse.main(Array("--local-md5sum", "--local", "-e", "ISO-8859-1", "--globaldir", TEST_EXECUTION_GLOBAL_DIR, testDirPath.path))
     Md5Recurse.main(Array("--local", "-e", "UTF-8-BOM", "--globaldir", TEST_EXECUTION_GLOBAL_DIR, testDirPath.path))
     withClue(localMd5FilePath) {
       localMd5FilePath.exists should be(true)
@@ -322,7 +321,7 @@ class LocalFileUpdateTest extends FlatSpec with TestConfig with TestData {
 
   "local-md5sum" should "write .md5 files files with BOM or not BOM - but this is not a test, just generato for total commander" in {
     val testDirPath = copyTestResources
-    md5Recurse(Array("--local-md5sum", "--local", "-e", "UTF-8-BOM", testDirPath.path))
+    md5Recurse(Array("--local", "-e", "UTF-8-BOM", testDirPath.path))
   }
 
 }

@@ -53,7 +53,7 @@ object Md5FileInfo {
 
     // Keep regexp as field, because of performance though it uses 20-30% more memory but takes 30% less time
     val md5SumCommentDataLineRegExp: Regex =
-        """#\s([-]?\d+)\s(\d+)""".r
+        """#>([-]?\d+);(\d+)""".r
     val md5SumHashDataLineRegExp: Regex = """([0-9a-f]+)\s([*]?)(.*)""".r
     val md5DataLineRegExp: Regex = """([0-9a-f]+)\s([01])\s([-]?\d+)\s(\d+)\s(.*)""".r
 
@@ -239,7 +239,7 @@ class Md5FileInfo(fileInfo: FileInfoBasic, md5: String, isBinaryMd5: Boolean) {
 
     def exportDataLineFullPath: String = md5 + " " + (if (isBinaryMd5) "1" else "0") + " " + fileInfo.exportLineFullPath
 
-    def exportDataLineComment: String = s"# " + fileInfo.exportLineWithoutFile
+    def exportDataLineComment: String = s"#>" + lastModified + ";" + size
 
     def exportMd5Line: String = exportDataLineComment + "\n" + md5 + " " + (if (isBinaryMd5) "*" else " ") + fileInfo.getName
 

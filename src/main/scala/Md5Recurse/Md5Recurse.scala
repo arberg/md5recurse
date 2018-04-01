@@ -66,7 +66,6 @@ case class Config(
                      //  excludePattern : String = ".*/.md5data",
                      disableMd5ForDirFilename: String = ".disable_md5",
                      md5DataGlobalFileName: String = "_global.md5data",
-                     md5DataPrDirFilename: String = ".md5data",
                      md5sumPrDirFilename: String = ".md5",
                      failedVerificationLogFilePostfix: String = "_global_failed.log",
                      failedVerificationFilePostfix: String = "_global_failed.md5data",
@@ -80,7 +79,7 @@ case class Config(
                      printMd5: Boolean = false,
                      useFileAttributes: Boolean = true) {
 
-    def md5DataExtension: String = md5DataPrDirFilename
+//    def md5DataExtension: String = md5DataPrDirFilename
 
     def md5SumExtension: String = md5sumPrDirFilename
 
@@ -422,8 +421,8 @@ object Md5Recurse {
             }
         }
 
-        // loop files (exclude *.md5data and *.md5)
-        for (f <- files if f.isFile if !f.getName.endsWith(Config.it.md5DataExtension) if !f.getName.endsWith(Config.it.md5SumExtension) if !FileUtil.isSymLink(f)) {
+        // loop files (exclude *.md5)
+        for (f <- files if f.isFile if !f.getName.endsWith(Config.it.md5SumExtension) if !FileUtil.isSymLink(f)) {
 
             def generateMd5(isFileSeenBefore: Boolean) = {
                 val debugInfo = if (isFileSeenBefore) "Generate " else "New "
