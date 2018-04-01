@@ -88,7 +88,7 @@ object FileUtil {
                         lock.release();
                     }
                 } else {
-                    if (!silenceReadErrors) System.err.println("Failed to lock file for reading: " + file)
+                    if (!silenceReadErrors) Console.err.println("Failed to lock file for reading: " + file)
                     onFailureResponse
                 }
             } finally {
@@ -96,7 +96,7 @@ object FileUtil {
             }
         } catch {
             case ioe: java.io.IOException => {
-                if (!silenceReadErrors) System.err.println("Failed to lock file for reading: " + file)
+                if (!silenceReadErrors) Console.err.println("Failed to lock file for reading: " + file)
                 onFailureResponse
             }
         }
@@ -116,13 +116,13 @@ object FileUtil {
                         lock.release();
                     }
                 } else {
-                    if (!silenceReadErrors) System.err.println("Failed to lock file for reading: " + file)
+                    if (!silenceReadErrors) Console.err.println("Failed to lock file for reading: " + file)
                 }
             } finally {
                 in.close();
             }
         } catch {
-            case ioe: java.io.IOException => if (!silenceReadErrors) System.err.println("Failed to lock file for reading: " + file)
+            case ioe: java.io.IOException => if (!silenceReadErrors) Console.err.println("Failed to lock file for reading: " + file)
         }
     }
 
@@ -142,7 +142,7 @@ object FileUtil {
             // Thrown if no attribute by the name found
             case ioe: java.nio.file.NoSuchFileException => None
             case e: Exception => {
-                if (!silenceReadErrors) System.err.println("Unable to get file attribute for :" + e);
+                if (!silenceReadErrors) Console.err.println("Unable to get file attribute for :" + e);
                 None
             }
         }
@@ -160,7 +160,7 @@ object FileUtil {
             true
         } catch {
             case e: Exception => {
-                if (!silenceReadErrors) System.err.println("Unable to update file attribute for :" + e);
+                if (!silenceReadErrors) Console.err.println("Unable to update file attribute for :" + e);
                 false
             }
         }
@@ -173,7 +173,7 @@ object FileUtil {
                 println("deleted attribute")
             }
         } catch {
-            case e: Exception => if (!silenceReadErrors) System.err.println("Unable to delete file attribute for :" + e)
+            case e: Exception => if (!silenceReadErrors) Console.err.println("Unable to delete file attribute for :" + e)
         }
     }
 }

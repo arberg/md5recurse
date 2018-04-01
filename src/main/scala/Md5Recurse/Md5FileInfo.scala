@@ -144,12 +144,12 @@ object Md5FileInfo {
                         try {
                             fileList.addToMap(Md5FileInfo.parseMd5SumDataLine(currentDir, lastCommentForLine.get, line))
                         } catch {
-                            case e: RuntimeException => System.err.println("Error occurred parsing md5data line: " + line)
+                            case _: RuntimeException => Console.err.println("Error occurred parsing md5data line: " + line)
                         }
                         lastCommentForLine = None
                     } else if (line.nonEmpty) {
                         if (!warnForMissingMd5DataComment) {
-                            System.err.println("Missing md5data comment in File " + md5dataFile)
+                            Console.err.println("Missing md5data comment in File " + md5dataFile)
                             warnForMissingMd5DataComment = true
                         }
                     }
@@ -171,9 +171,9 @@ object Md5FileInfo {
                 lineNo += 1
             }
         } catch {
-            case e: FileNotFoundException =>
-            case e: MalformedInputException => System.err.println("File in different charset encoding, read file with " + encoding + ": " + md5dataFile)
-            case e: RuntimeException => System.err.println("Error occurred reading file " + md5dataFile + " @ line " + lineNo + "(will skip rest of file, and regenerate new): " + lastLine)
+            case _: FileNotFoundException =>
+            case _: MalformedInputException => Console.err.println("File in different charset encoding, read file with " + encoding + ": " + md5dataFile)
+            case _: RuntimeException => Console.err.println("Error occurred reading file " + md5dataFile + " @ line " + lineNo + "(will skip rest of file, and regenerate new): " + lastLine)
         }
         dirToFileMap.setDoneBuilding;
         dirToFileMap

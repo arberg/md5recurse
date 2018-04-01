@@ -221,7 +221,7 @@ class LocalFileUpdateTest extends FlatSpec with TestConfig with TestData {
     repeatTest(Array("-V", "1", "--local", filepath.path))
   }
 
-  "With enabled fileAttributes" should "a renamed file should not be rescanned" in {
+  "With enabled fileAttributes a renamed file" should " not be rescanned" in {
     val testDirPath = copyTestResources
     val filepath = testDirPath / "dummy1.log"
     val newFilepath = testDirPath / "dummy1Renamed.log"

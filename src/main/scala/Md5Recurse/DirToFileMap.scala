@@ -23,7 +23,7 @@ class FileListOrMap {
                 try {
                     addToMapInner(Md5FileInfo.parseMd5DataLine(dir, new String(line, "UTF-8")))
                 } catch {
-                    case e: RuntimeException => System.err.println("Error occurred parsing md5data line: " + line)
+                    case e: RuntimeException => Console.err.println("Error occurred parsing md5data line: " + line)
                 }
             })
             list = null

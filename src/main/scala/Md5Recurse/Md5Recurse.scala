@@ -403,7 +403,7 @@ object Md5Recurse {
         val config = Config.it
         //    if (config.verbose >= 2) print("Dir: " + dir)
         // Read md5data files in dir lazily, so we only read it if the global file does not exist or a file has been updated in the directory
-        val localDirSet = if (Config.it.readMd5DataPrDirectory) {
+        lazy val localDirSet = if (Config.it.readMd5DataPrDirectory) {
             Md5FileInfo.readDirFile(dir.getPath + "/" + Config.it.md5sumName(), true)
         } else {
             None
