@@ -39,7 +39,9 @@ object Md5FileInfo {
                     val md5FileInfoUpdated = if (updateFileAttribute) Md5FileInfo.updateMd5FileAttribute(file, md5FileInfo, true) else md5FileInfo
                     Some(md5FileInfoUpdated)
                 }
-                else None
+                else {
+                    None
+                }
             }
         }
     }
@@ -202,8 +204,9 @@ object Md5FileInfo {
             doUpdate(md5FileInfo)
             if (lastModifiedBeforeAttributeUpdateWasEqual && file.lastModified() != md5FileInfo.lastModified()) {
                 file.setLastModified(md5FileInfo.lastModified())
-                if (file.lastModified() != md5FileInfo.lastModified())
+                if (file.lastModified() != md5FileInfo.lastModified()) {
                     println("WARNING: Failed to set fileAttribute with same lastModified as file timestamp")
+                }
             }
         }
         if (isFileAlreadyLocked) updateAttributeFunction.apply() else FileUtil.doWithLockedFile(file)(updateAttributeFunction)
