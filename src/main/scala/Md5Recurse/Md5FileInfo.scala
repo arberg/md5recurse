@@ -144,7 +144,7 @@ object Md5FileInfo {
                         try {
                             fileList.addToMap(Md5FileInfo.parseMd5SumDataLine(currentDir, lastCommentForLine.get, line))
                         } catch {
-                            case _: RuntimeException => Console.err.println("Error occurred parsing md5data line: " + line)
+                            case _: RuntimeException => Console.err.println("Error occurred parsing md5data " + md5dataFile + " line: " + lastCommentForLine.get + "`" + line)
                         }
                         lastCommentForLine = None
                     } else if (line.nonEmpty) {
