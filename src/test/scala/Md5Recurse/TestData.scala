@@ -9,6 +9,7 @@ trait TestData {
   val MD5_DUMMY2 = "23c1098001b690cd74137cbfe716be06"
   val MD5_DUMMY1a = "681cde2a4b71e4881e3982220c3514d4"
   val NEW_CONTENT_STRING = "New Content"
+  val NEW_CONTENT_STRING2 = "New Content2"
   val MD5_NEW_CONTENT = "f45cc89d6028945712f568082080e7c5"
 
 }

@@ -119,6 +119,35 @@ class LocalFileUpdateTest extends FlatSpec with TestConfig with TestData {
     testLocalFileWrittenAndNotUpdated(MD5SUM_EXT, Array("--local-md5sum", "--print"))
   }
 
+  "Local file with --disable-file-attributes" should "detect changes" in {
+    val testDirPath = copyTestResources / "onlyTwoFiles"
+    testDirPath.children().size should be(2)
+    val filepath1 = testDirPath / "dummy1a.log"
+    filepath1.exists should be(true)
+
+    val prefix = "testLocalFiles"
+    val localMd5FilePath = testDirPath / Path("." + prefix + MD5SUM_EXT)
+    localMd5FilePath.exists should be(false)
+
+    val params = Array("--disable-file-attributes", "--local", "-V", "2", "-p", prefix, testDirPath.path)
+
+    // Scan directory and test that md5-file is created (md5data or md5sum, see param)
+    md5Recurse(params)
+    localMd5FilePath.exists should be(true)
+    assertFilesContainExactly(MD5_DUMMY1a, 1, localMd5FilePath)
+    localMd5FilePath.lines() // replace stuff in it // look for other test doing the same
+
+    // Change the test-file and check new md5 file written
+    filepath1.write(NEW_CONTENT_STRING)
+    md5Recurse(params)
+    localMd5FilePath.lines().foreach(println(_))
+    assertFilesContainExactlyOnce(MD5_NEW_CONTENT, localMd5FilePath)
+
+    filepath1.write(NEW_CONTENT_STRING2) // filestamp changed, so use --check-all
+    val (_, error) = md5RecurseGetOutputAndError(params :+ "--check-all", true)
+    error should not include ("Failed verification")
+  }
+
   "With disabled fileAttributes" should "not read or write fileAttributes" in {
     val testDirPath = copyTestResources
     val filepath = testDirPath / "dummy1.log"
@@ -220,7 +249,7 @@ class LocalFileUpdateTest extends FlatSpec with TestConfig with TestData {
     ExecutionLog.current.readFileAndGeneratedMd5 should be(false)
   }
 
-  "Local file" should "honor specified encoding" in {
+  "Local file Encoding" should "honor specified encoding" in {
     def testLocalFileWrittenInEncoding(localMd5FileExtension: String, md5ToolParam: Array[String], expectForcedUTF8: Boolean) {
       val testDirPath = copyTestResources / "encoding"
       val filepath = testDirPath / "danish_øæåØÆÅ.log"
@@ -296,5 +325,10 @@ class LocalFileUpdateTest extends FlatSpec with TestConfig with TestData {
   //  "version" should "print version" in {
   //    Md5Recurse.main(Array("--version"))
   //  }
+
+  "local-md5sum" should "write .md5 files files with BOM or not BOM - but this is not a test, just generato for total commander" in {
+    val testDirPath = copyTestResources
+    md5Recurse(Array("--local-md5sum", "--local", "-e", "UTF-8-BOM", testDirPath.path))
+  }
 
 }

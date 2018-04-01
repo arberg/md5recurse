@@ -268,7 +268,7 @@ class Md5RecurseTest extends FlatSpec with TestConfig with TestData {
     md5RecurseFile(SRC_TEST_RES_FILES_DIR + "/dummy1.log", None)
   }
 
-  "Md5Recurse scan" should "global and local files not duplicated content" in {
+  "Md5Recurse scan with global and local files" should "not duplicate content" in {
     val testDirPath = copyTestResources
     val filepath1 = testDirPath / "dummy1.log"
     val globalMd5FilePath = testDirPath / Path("_global.md5data")

@@ -1,7 +1,6 @@
 package Md5Recurse
 
 import java.io.{File, FileNotFoundException, PrintWriter}
-import java.nio.file.Paths
 import java.security.MessageDigest
 import java.text.SimpleDateFormat
 import java.util.Calendar
@@ -10,12 +9,12 @@ import java.util.Calendar
 // import WordWrap._
 import WordWrap._
 import com.twmacinta.util.MD5
+import scalax.file.Path
+import scalax.io.Codec
 
 import scala.collection._
 import scala.collection.immutable.Seq
 import scala.collection.mutable.MutableList
-import scalax.file.Path
-import scalax.io.Codec
 
 // We keep an execution log so our tests can monitor what the program did, when it is difficult to determine by seeing output
 object ExecutionLog {
@@ -27,13 +26,14 @@ class ExecutionLog {
 }
 
 object Sys {
-  val OS = System.getProperty("os.name")
-  val isWin = OS.startsWith("Windows")
-  val currentDateString = new SimpleDateFormat("yyyyMMdd_HHmm").format(Calendar.getInstance.getTime)
+  val OS: String = System.getProperty("os.name")
+  val isWin: Boolean = OS.startsWith("Windows")
+  val currentDateString: String = new SimpleDateFormat("yyyyMMdd_HHmm").format(Calendar.getInstance.getTime)
+  val lineSeparator: String = System.lineSeparator() // Unused but might be useful, currently file writing converts \n
 }
 
 object Config {
-  var it: Config = null
+  var it: Config = _
   val debugLog = false
 }
 
@@ -80,27 +80,27 @@ case class Config(
                    printMd5: Boolean = false,
                    useFileAttributes: Boolean = true) {
 
-  def md5DataExtension() = md5DataPrDirFilename;
+  def md5DataExtension(): String = md5DataPrDirFilename
 
-  def md5SumExtension() = md5sumPrDirFilename;
+  def md5SumExtension(): String = md5sumPrDirFilename
 
-  def prefixDot() = (if (md5FilePrefix.isEmpty()) "" else ".") + md5FilePrefix;
+  def prefixDot(): String = (if (md5FilePrefix.isEmpty()) "" else ".") + md5FilePrefix
 
-  def md5sumName() = prefixDot + md5sumPrDirFilename;
+  def md5sumName(): String = prefixDot + md5sumPrDirFilename
 
-  def md5dataName() = prefixDot + md5DataPrDirFilename;
+  def md5dataName(): String = prefixDot + md5DataPrDirFilename
 
-  def md5dataGlobalName() = md5FilePrefix + md5DataGlobalFileName;
+  def md5dataGlobalName(): String = md5FilePrefix + md5DataGlobalFileName
 
-  def md5dataGlobalFilePath() = md5dataGlobalFolder.get.getAbsolutePath + "/" + md5dataGlobalName();
+  def md5dataGlobalFilePath(): String = md5dataGlobalFolder.get.getAbsolutePath + "/" + md5dataGlobalName()
 
-  def tmpMd5dataGlobalFilePath() = md5dataGlobalFolder.get.getAbsolutePath + "/temp_" + md5dataGlobalName();
+  def tmpMd5dataGlobalFilePath(): String = md5dataGlobalFolder.get.getAbsolutePath + "/temp_" + md5dataGlobalName()
 
-  def failureFile() = new File(md5dataGlobalFolder.get.getAbsolutePath + "/" + Sys.currentDateString + (if (md5FilePrefix.isEmpty()) "" else "_") + md5FilePrefix + Config.it.failedVerificationFilePostfix);
+  def failureFile(): File = new File(md5dataGlobalFolder.get.getAbsolutePath + "/" + Sys.currentDateString + (if (md5FilePrefix.isEmpty()) "" else "_") + md5FilePrefix + Config.it.failedVerificationFilePostfix)
 
-  def failureLogFile() = new File(md5dataGlobalFolder.get.getAbsolutePath + "/" + Sys.currentDateString + (if (md5FilePrefix.isEmpty()) "" else "_") + md5FilePrefix + Config.it.failedVerificationLogFilePostfix);
+  def failureLogFile(): File = new File(md5dataGlobalFolder.get.getAbsolutePath + "/" + Sys.currentDateString + (if (md5FilePrefix.isEmpty()) "" else "_") + md5FilePrefix + Config.it.failedVerificationLogFilePostfix)
 
-  def errorFile() = new File(md5dataGlobalFolder.get.getAbsolutePath + "/" + Sys.currentDateString + md5FilePrefix + Config.it.errorsFilePostfix);
+  def errorFile(): File = new File(md5dataGlobalFolder.get.getAbsolutePath + "/" + Sys.currentDateString + md5FilePrefix + Config.it.errorsFilePostfix)
 }
 
 // https://github.com/scopt/scopt
@@ -156,7 +156,7 @@ class Md5OptionParser extends scopt.OptionParser[Config]("Md5Recurse") {
   } text "The directory to store the global MD5 info in a flat file. Note with global enabled missing MD5's will still be read from local in each directory file if such files exists".wordWrap(TEXT_WRAP, TEXT_INDENT)
 
   opt[Unit]("local") action { (x, c) =>
-    c.copy(readMd5DataPrDirectory = true, writeMd5DataPrDirectory = true)
+    c.copy(readMd5DataPrDirectory = true, writeMd5DataPrDirectory = true, writeMd5SumPrDirectory = true)
   } text "Enable reading and writing Md5Data files locally in each directory "
 
   opt[Unit]("local-md5sum") action { (x, c) =>
@@ -413,12 +413,11 @@ object Md5Recurse {
     val config = Config.it
     //    if (config.verbose >= 2) print("Dir: " + dir)
     // Read md5data files in dir lazily, so we only read it if the global file does not exist or a file has been updated in the directory
-    lazy val localDirSet =
-    if (Config.it.readMd5DataPrDirectory) {
-      val md5dataFilename = dir.getPath + "/" + Config.it.md5dataName()
-      if (Config.it.logMd5ScansSkippedAndLocalAndAttributeReads) println("Reading local md5data: " + md5dataFilename)
-      Md5FileInfo.readDirFile(md5dataFilename)
-    } else None
+    val localDirSet = if (Config.it.readMd5DataPrDirectory) {
+      Md5FileInfo.readDirFile(dir.getPath + "/" + Config.it.md5sumName(), true)
+    } else {
+      None
+    }
     val failureMsgs = MutableList[String]()
     val failures = MutableList[Md5FileInfo]()
     val md5s = MutableList[Md5FileInfo]()
@@ -610,11 +609,10 @@ object Md5Recurse {
   }
 
   def isDirDisabled(dir: File) = {
-    val files = dir.listFiles
-    if (files != null)
-      files.toList.exists(_.getName.equals(Config.it.disableMd5ForDirFilename))
-    else {
-      false // means io error (including permission denied)
+    dir.listFiles match {
+      case null => false // means io error (including permission denied)
+      //noinspection ComparingUnrelatedTypes - editor bug (or unsupported feature), type of _ is fine
+      case f => f.toList.exists(_.getName.equals(Config.it.disableMd5ForDirFilename))
     }
   }
 
@@ -671,6 +669,7 @@ object Md5Recurse {
       execVerifyByRecursion(recurse, new File(srcDir), fileSet, dataFileUpdater.updateFileSetAndWriteFiles)
     }
   }
+
   // Should be split into parent with writer ability
   def execute(config: Config) {
     Md5Recurse.initNativeLibrary()
@@ -678,7 +677,7 @@ object Md5Recurse {
     val fileSet: DirToFileMap =
       if (config.readMd5DataGlobally)
         Timer.withResult("Md5Recurse.ReadGlobalFile", Config.it.logPerformance) {
-          () => Md5FileInfo.readMd5DataFile(new File(config.md5dataGlobalFilePath()))
+          () => Md5FileInfo.readMd5DataFile(new File(config.md5dataGlobalFilePath()), false)
         }
       else
         new DirToFileMap()

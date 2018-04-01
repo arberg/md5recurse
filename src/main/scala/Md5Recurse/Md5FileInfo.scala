@@ -4,9 +4,10 @@ import java.io.{File, FileNotFoundException}
 import java.nio.charset.MalformedInputException
 import java.nio.file.attribute.UserDefinedFileAttributeView
 
+import scalax.file.Path
+
 import scala.collection.Map
 import scala.io.Source
-import scalax.file.Path
 //import scalax.file
 //import scalax.file.{FileSystem, Path}
 //
@@ -49,13 +50,27 @@ object Md5FileInfo {
   }
 
   // Keep regexp as field, because of performance though it uses 20-30% more memory but takes 30% less time
-  val md5DataLineRegExp =
-    """([0-9a-f]+)\s([01])\s([-]?\d+)\s(\d+)\s(.*)""".r
+  val md5SumCommentDataLineRegExp = """#\s([-]?\d+)\s(\d+)""".r
+  val md5SumHashDataLineRegExp = """([0-9a-f]+)\s([*]?)(.*)""".r
+  val md5DataLineRegExp = """([0-9a-f]+)\s([01])\s([-]?\d+)\s(\d+)\s(.*)""".r
 
   def parseMd5DataLine(dir: String, dataLine: String) = {
     // lastMod will be negative if file dated before 1970.
     val (md5, lastMod: String, size, isBinary, filename) = dataLine match {
       case md5DataLineRegExp(md5, b, lastMod, size, f) => (md5, lastMod, size, b == "1", f)
+      case _ => throw new RuntimeException(dataLine + "\n line did not match timestamp-expression")
+    }
+    new Md5FileInfo(new FileInfoBasic(lastMod.toLong, size.toLong, dir, filename), md5, isBinary)
+  }
+
+  def parseMd5SumDataLine(dir: String, commentLine: String, dataLine: String) = {
+    // lastMod will be negative if file dated before 1970.
+    val (lastMod: String, size) = commentLine match {
+      case md5SumCommentDataLineRegExp(lastMod, size) => (lastMod, size)
+      case _ => throw new RuntimeException(commentLine + "\n comment line did not match timestamp-expression")
+    }
+    val (md5, isBinary, filename) = dataLine match {
+      case md5SumHashDataLineRegExp(md5, bStar, f) => (md5, bStar == "*", f)
       case _ => throw new RuntimeException(dataLine + "\n line did not match timestamp-expression")
     }
     new Md5FileInfo(new FileInfoBasic(lastMod.toLong, size.toLong, dir, filename), md5, isBinary)
@@ -93,9 +108,10 @@ object Md5FileInfo {
     }
   }
 
-  def readDirFile(md5dataFilename: String): Option[Map[String, Md5FileInfo]] = {
+  def readDirFile(md5dataFilename: String, md5sumWithDataInComment: Boolean): Option[Map[String, Md5FileInfo]] = {
+    if (Config.it.logMd5ScansSkippedAndLocalAndAttributeReads) println("Reading local md5data: " + md5dataFilename)
     val md5dataFile = new File(md5dataFilename)
-    val fileSet = readMd5DataFile(md5dataFile)
+    val fileSet = readMd5DataFile(md5dataFile, md5sumWithDataInComment)
     fileSet.getDir(md5dataFile.getParentFile)
   }
 
@@ -103,30 +119,49 @@ object Md5FileInfo {
     * Reads MD5 data files. The reader supports reading concatenated files, where the same directory is mentioned several times. If files appear multiple times, the last file will be remembered
     *
     * @param md5dataFile
+    * @param md5sumWithDataInComment iff true then Reads *.md5 files with comments with timestamp and file size
     * @return
     */
-  def readMd5DataFile(md5dataFile: File): DirToFileMap = {
+  def readMd5DataFile(md5dataFile: File, md5sumWithDataInComment: Boolean): DirToFileMap = {
     val dirToFileMap = new DirToFileMap;
     val encoding = "UTF-8"
-    var lineNo = 1;
-    var lastLine = "";
+    var lineNo = 1
+    var lastLine = ""
+    var lastCommentForLine: Option[String] = None
     try {
       var currentDir: String = md5dataFile.getParent()
       var fileList = dirToFileMap.getOrCreateDir(currentDir) // Initial fileList is used for local md5data files
       val source = Source.fromFile(md5dataFile, encoding)
       for (line <- source.getLines) {
         lastLine = line
-        if (line.startsWith(">")) {
-          // New directory
-          currentDir = line.substring(1)
-          // Converting to absolute dir has a tiny performance price. It makes scanning an 82MB global file with 122.000 dirs take 1.6 sec instead of 0.7 sec.
-          // It makes possible for a user to modify global files without to much care about getting slashes and absolute paths correct in string+case comparison perfect
-          // This absolute conversion has only been done on the directory not the files in the directory
-          val convertedCurrentDir = Path.fromString(currentDir).toAbsolute.path
-          fileList = dirToFileMap.getOrCreateDir(convertedCurrentDir)
+        if (md5sumWithDataInComment) {
+          // For md5sum files we parse an fill in the map immediately
+          if (line.startsWith("#")) {
+            lastCommentForLine = Some(line)
+          } else if (lastCommentForLine.isDefined) {
+            try {
+              fileList.addToMap(Md5FileInfo.parseMd5SumDataLine(currentDir, lastCommentForLine.get, line))
+            } catch {
+              case e: RuntimeException => System.err.println("Error occurred parsing md5data line: " + line)
+            }
+            lastCommentForLine = None
+          } else if (line.size > 0) {
+            System.err.println("Missing md5data comment in File " + md5dataFile)
+          }
         } else {
-          // New file
-          fileList.addToList(line)
+          // For md5data files we postpone parsing and esp filling in map with Md5FileInfo to avoid the memory usage blowup for the entire global file
+          if (line.startsWith(">")) {
+            // New directory
+            currentDir = line.substring(1)
+            // Converting to absolute dir has a tiny performance price. It makes scanning an 82MB global file with 122.000 dirs take 1.6 sec instead of 0.7 sec.
+            // It makes possible for a user to modify global files without to much care about getting slashes and absolute paths correct in string+case comparison perfect
+            // This absolute conversion has only been done on the directory not the files in the directory
+            val convertedCurrentDir = Path.fromString(currentDir).toAbsolute.path
+            fileList = dirToFileMap.getOrCreateDir(convertedCurrentDir)
+          } else {
+            // New file
+            fileList.addToList(line)
+          }
         }
         lineNo += 1
       }
@@ -139,7 +174,6 @@ object Md5FileInfo {
     dirToFileMap.setDoneBuilding;
     dirToFileMap
   }
-
 
   def updateMd5FileAttribute(file: File, md5FileInfo: Md5FileInfo): Md5FileInfo = {
     updateMd5FileAttribute(file, md5FileInfo, false)
@@ -200,7 +234,9 @@ class Md5FileInfo(fileInfo: FileInfoBasic, md5: String, isBinaryMd5: Boolean) {
 
   def exportDataLineFullPath = md5 + " " + (if (isBinaryMd5) "1" else "0") + " " + fileInfo.exportLineFullPath
 
-  def exportMd5Line = md5 + " " + (if (isBinaryMd5) "*" else " ") + fileInfo.getName
+  def exportDataLineComment = s"# " + fileInfo.exportLineWithoutFile
+
+  def exportMd5Line = exportDataLineComment + "\n" + md5 + " " + (if (isBinaryMd5) "*" else " ") + fileInfo.getName
 
   def createUpdateTimestamp = new Md5FileInfo(fileInfo.createUpdateLastModified(), md5, isBinaryMd5)
 }
