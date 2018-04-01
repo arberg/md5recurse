@@ -87,6 +87,8 @@ case class Config(
 
     def md5sumName(): String = prefixDot + md5sumPrDirFilename
 
+    // def md5dataName(): String = prefixDot + md5DataPrDirFilename
+
     def md5dataGlobalName(): String = md5FilePrefix + md5DataGlobalFileName
 
     def md5dataGlobalFilePath(): String = md5dataGlobalFolder.get.getAbsolutePath + "/" + md5dataGlobalName()
@@ -364,7 +366,7 @@ object Md5Recurse {
       * @return
       */
     def verifyAndGenerateMd5ForDirectoryNonRecursive(dir: File, globalDirSet: Option[Map[String, Md5FileInfo]]) = {
-        verifyAndGenerateMd5NonRecursive(dir, dir.listFiles().toList, globalDirSet)
+        verifyAndGenerateMd5NonRecursive(dir, FileUtil.listFiles(dir).toList, globalDirSet)
     }
 
     def verifyAndGenerateMd5SingleFile(file: File, globalDirSet: Option[Map[String, Md5FileInfo]]) = {
@@ -600,11 +602,7 @@ object Md5Recurse {
     }
 
     def isDirDisabled(dir: File) = {
-        dir.listFiles match {
-            case null => false // means io error (including permission denied)
-            //noinspection ComparingUnrelatedTypes - editor bug (or unsupported feature), type of _ is fine
-            case f => f.toList.exists(_.getName.equals(Config.it.disableMd5ForDirFilename))
-        }
+        FileUtil.listFiles(dir).toList.exists(_.getName.equals(Config.it.disableMd5ForDirFilename))
     }
 
     /**
@@ -626,7 +624,8 @@ object Md5Recurse {
         if (dirOrFile.exists) {
             if (dirOrFile.isDirectory()) {
                 val dir = dirOrFile
-                if (dir.listFiles == null) {
+                val filesInDir = dir.listFiles()
+                if (filesInDir == null) {
                     if (!Sys.isWin || !FileUtil.isWinHardLink(dirOrFile)) // Ignore errors on hard links
                     {
                         if (!Config.it.silenceWarnings) Console.err.println("Unable to read dir, permission denied or io error: " + dir.getPath)
@@ -635,8 +634,7 @@ object Md5Recurse {
                     val (md5s, failureMd5s, failureMessages, isFileUpdated, greatestLastModifiedTimestampInDir) = verifyAndGenerateMd5ForDirectoryNonRecursive(dir, fileSet.removeDir(dir))
                     postScan(dir, md5s, failureMd5s, failureMessages, isFileUpdated, greatestLastModifiedTimestampInDir)
                     if (recurse) {
-                        for (f <- dir.listFiles().sortBy(_.getName).toList if f.isDirectory()) // Sort traversal to get global files written same order and thus makes text-comparison possible
-                        {
+                        for (f <- filesInDir.sortBy(_.getName) if f.isDirectory()) { // Sort traversal to get global files written same order and thus makes text-comparison possible
                             execVerifyByRecursion(true, f, fileSet, postScan)
                         }
                     }
@@ -695,9 +693,11 @@ object Md5Recurse {
         for (d <- config.srcDirs if d.exists()) {
             FileUtil.traverse(d, {
                 f: File =>
-                    if (f.getName == config.md5sumName()) {
-                        f.delete()
-                        println("Deleted " + f)
+                    if (f.getName == config.md5sumName()/* || f.getName == config.md5dataName() - todo delete */) {
+                        f.delete() match {
+                            case true => println("Deleted " + f)
+                            case false => println("Failed to delete " + f)
+                        }
                     }
             })
         }

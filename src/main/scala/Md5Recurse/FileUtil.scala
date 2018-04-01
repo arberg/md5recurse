@@ -5,7 +5,9 @@ import java.nio.ByteBuffer
 import java.nio.file.attribute.{BasicFileAttributes, UserDefinedFileAttributeView}
 import java.nio.file.{Files, LinkOption, Paths}
 
-import scala.collection.{Iterable, Iterator}
+import scalax.file.Path
+
+import scala.collection.{Iterable, Iterator, immutable}
 
 /**
   * Created by Alex on 20-08-2016.
@@ -45,20 +47,28 @@ object FileUtil {
     }
 
     def getListOfFiles(dir: File): List[File] = {
-        if (dir.exists && dir.isDirectory) {
-            dir.listFiles.filter(_.isFile).toList
-        } else {
-            List[File]()
-        }
+        listFiles(dir).filter(_.isFile).toList
     }
 
-    def traverse(dir: File, proc: File => Unit): Unit =
-        dir.listFiles foreach { f => if (f.isDirectory) traverse(f, proc) else proc(f) }
+    def traverse(dir: File, proc: File => Unit) {
+        listFiles(dir, true) foreach { f => if (f.isDirectory) traverse(f, proc) else proc(f) }
+    }
+
+    def listFiles(dir: File, printOnError : Boolean = false): Array[File] = {
+        // See comments here, and read java-doc of listFiles: https://stackoverflow.com/questions/2637643/how-do-i-list-all-files-in-a-subdirectory-in-scala
+        Option(dir.listFiles) match {
+            case Some(f) => f
+            case None => {
+                if (printOnError) Console.err.println("Unable to list files in " + dir)
+                Array[File]()
+            }
+        }
+    }
 
     // see also http://stackoverflow.com/questions/2637643/how-do-i-list-all-files-in-a-subdirectory-in-scala#
     def walkTree(file: File): Iterable[File] = {
         val children = new Iterable[File] {
-            def iterator = if (file.isDirectory) file.listFiles.iterator else Iterator.empty
+            def iterator = if (file.isDirectory) listFiles(file).iterator else Iterator.empty
         }
         Seq(file) ++: children.flatMap(walkTree(_))
     }
