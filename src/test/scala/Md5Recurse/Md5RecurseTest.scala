@@ -159,14 +159,9 @@ class Md5RecurseTest extends FlatSpec with TestConfig with TestData {
     localFileWhichShouldBeDeleted2.exists should be(false)
   }
 
-  "Md5Recurse disabled md5 with local data in dir" should "delete old local md5data file" in {
-    val testDirPath = copyTestResources
-    runMd5AndCheckGeneratedAndDeletedLocalFiles(testDirPath, ".user.md5data", Array("--local", "--disable-file-attributes", "-p", "user", "-V", "3", testDirPath.path))
-  }
-
   "Md5Recurse disabled md5 with local data in dir" should "delete old local md5sum file" in {
     val testDirPath = copyTestResources
-    runMd5AndCheckGeneratedAndDeletedLocalFiles(testDirPath, ".user.md5", Array("--local-md5sum", "-p", "user", "-V", "2", testDirPath.path))
+    runMd5AndCheckGeneratedAndDeletedLocalFiles(testDirPath, ".user.md5", Array("--local", "-p", "user", "-V", "2", testDirPath.path))
   }
 
   "Md5Recurse find missing files without global dir" should "fail" in {
@@ -271,9 +266,9 @@ class Md5RecurseTest extends FlatSpec with TestConfig with TestData {
   "Md5Recurse scan with global and local files" should "not duplicate content" in {
     val testDirPath = copyTestResources
     val filepath1 = testDirPath / "dummy1.log"
-    val globalMd5FilePath = testDirPath / Path("_global.md5data")
+    val globalMd5FilePath = testDirPath / Path("_global"+MD5DATA_EXT)
     globalMd5FilePath.exists should be(false)
-    val localMd5FilePath = testDirPath / Path(".md5data")
+    val localMd5FilePath = testDirPath / Path(MD5SUM_EXT)
     localMd5FilePath.exists should be(false)
 
     val commonParams = Array("-g", testDirPath.path, "--local")
@@ -314,9 +309,9 @@ class Md5RecurseTest extends FlatSpec with TestConfig with TestData {
     val testDirPath = copyTestResources
     val filepath1 = testDirPath / "dummy1.log"
     val filepath2 = testDirPath / "dummy2.log"
-    val globalMd5FilePath = testDirPath / Path("_global.md5data")
+    val globalMd5FilePath = testDirPath / Path("_global" + MD5DATA_EXT)
     globalMd5FilePath.exists should be(false)
-    val localMd5FilePath = testDirPath / Path(".md5data")
+    val localMd5FilePath = testDirPath / Path(MD5SUM_EXT)
     localMd5FilePath.exists should be(false)
 
     val commonParams = Array("-g", testDirPath.path, "--local")
@@ -362,17 +357,13 @@ class Md5RecurseTest extends FlatSpec with TestConfig with TestData {
     val parentTestDir = cleanTestDir
     val dir = new File(parentTestDir, "emptyDir")
     val filename = new File(dir + "/dummy1.log")
-    val fileMd5Data = new File(dir + "/.md5data")
-    val fileMd5Sum = new File(dir + "/.md5")
+    val fileMd5Sum = new File(dir + "/" + MD5SUM_EXT)
     if (!dir.exists()) dir.mkdir()
-    writeFile(fileMd5Data, "")
     writeFile(fileMd5Sum, "")
-    fileMd5Data.exists() should be(true)
     fileMd5Sum.exists() should be(true)
 
-    Md5Recurse.main(Array("--local", "--local-md5sum", dir.getPath))
+    Md5Recurse.main(Array("--local", dir.getPath))
 
-    fileMd5Data.exists() should be(false)
     fileMd5Sum.exists() should be(false)
   }
 

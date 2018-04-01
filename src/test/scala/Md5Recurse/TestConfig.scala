@@ -1,9 +1,8 @@
 package Md5Recurse
 
-import java.io.{File, PrintWriter}
+import java.io.{File, IOException, PrintWriter}
 
 import org.scalatest._
-
 import scalax.file.Path
 // http://jesseeichar.github.io/scala-io-doc/0.4.3/index.html#!/file/string_to_file
 //import scalax.file.defaultfs.DefaultPath
@@ -13,6 +12,9 @@ import scalax.file.Path
 
 
 trait TestConfig extends FlatSpec with TestHelper {
+
+  val MD5DATA_EXT = ".md5data"
+  val MD5SUM_EXT = ".md5"
 
   val TEST_EXECUTION_DIR = "build/testExecution"
   val TEST_EXECUTION_DIR_PATH = Path.fromString(TEST_EXECUTION_DIR)
@@ -45,9 +47,13 @@ trait TestConfig extends FlatSpec with TestHelper {
   def copyTestResources: Path = {
     cleanTestDir
     assert(TEST_EXECUTION_DIR_PATH.exists, TEST_EXECUTION_DIR_PATH.toString)
-    val testRes = SRC_TEST_RES_DIR_PATH.copyTo(target = TEST_EXECUTION_DIR_PATH / "testRes", copyAttributes = false, replaceExisting = true)
-    deleteMd5FileAttributes(testRes)
-    testRes
+    try {
+      val testRes = SRC_TEST_RES_DIR_PATH.copyTo(target = TEST_EXECUTION_DIR_PATH / "testRes", copyAttributes = false, replaceExisting = true)
+      deleteMd5FileAttributes(testRes)
+      testRes
+    } catch {
+      case e: java.io.IOException => throw new RuntimeException("Unable to copy test resources", e)
+    }
   }
 
   def writeFile(filename: String, content: String): Unit = {

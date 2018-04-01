@@ -13,9 +13,6 @@ import scalax.io.Codec
 @RunWith(classOf[JUnitRunner])
 class LocalFileUpdateTest extends FlatSpec with TestConfig with TestData {
 
-  val MD5DATA_EXT = ".md5data"
-  val MD5SUM_EXT = ".md5"
-
   "Timer" should "performance files" in {
     if (false) {
       val testDirPath = copyTestResources / "onlyTwoFiles"
@@ -113,10 +110,8 @@ class LocalFileUpdateTest extends FlatSpec with TestConfig with TestData {
       localMd5FilePath.exists should be(false)
     }
 
-    testLocalFileWrittenAndNotUpdated(MD5SUM_EXT, Array("--local-md5sum"))
-    testLocalFileWrittenAndNotUpdated(MD5DATA_EXT, Array("--local"))
-    testLocalFileWrittenAndNotUpdated(MD5DATA_EXT, Array("--local", "--print"))
-    testLocalFileWrittenAndNotUpdated(MD5SUM_EXT, Array("--local-md5sum", "--print"))
+    testLocalFileWrittenAndNotUpdated(MD5SUM_EXT, Array("--local"))
+    testLocalFileWrittenAndNotUpdated(MD5SUM_EXT, Array("--local", "--print"))
   }
 
   "Local file with --disable-file-attributes" should "detect changes" in {
@@ -145,14 +140,14 @@ class LocalFileUpdateTest extends FlatSpec with TestConfig with TestData {
 
     filepath1.write(NEW_CONTENT_STRING2) // filestamp changed, so use --check-all
     val (_, error) = md5RecurseGetOutputAndError(params :+ "--check-all", doEcho = true)
-    error should not include "Failed verification"
+    error should include ("Failed verification")
   }
 
   "With disabled fileAttributes" should "not read or write fileAttributes" in {
     val testDirPath = copyTestResources
     val filepath = testDirPath / "dummy1.log"
     filepath.exists should be(true)
-    val localMd5FilePath = testDirPath / Path(".md5data")
+    val localMd5FilePath = testDirPath / Path(MD5SUM_EXT)
     localMd5FilePath.exists should be(false)
 
     deleteMd5FileAttributes(testDirPath)
@@ -166,7 +161,7 @@ class LocalFileUpdateTest extends FlatSpec with TestConfig with TestData {
     validateAttr(filepath, "dddddddddddddddddddddddddddddddd") // File attribute should still contain our dummy value
     localMd5FilePath.exists should be(true)
     //localMd5FilePath.lines().foreach(f => println(f))
-    val md5DataLine = localMd5FilePath.lines().head
+    val md5DataLine = localMd5FilePath.lines().tail.head // get 2nd line
     md5DataLine should include("4dfb6df790f3b8b2bf84145c6fb32bac") // Local file should contain actual computed value
   }
 
@@ -272,20 +267,19 @@ class LocalFileUpdateTest extends FlatSpec with TestConfig with TestData {
 
       val commonParams = Array("--local-update-all", testDirPath.path)
       deleteMd5FileAttributes(testDirPath)
-      Md5Recurse.main(md5ToolParam ++ commonParams)
+      md5Recurse(md5ToolParam ++ commonParams)
       verify("UTF-8 default", Codec.UTF8)
-      Md5Recurse.main(md5ToolParam ++ Array("--encoding", "UTF-8") ++ commonParams)
+      md5Recurse(md5ToolParam ++ Array("--encoding", "UTF-8") ++ commonParams)
       verify("UTF-8 specified", Codec.UTF8)
-      Md5Recurse.main(md5ToolParam ++ Array("--encoding", "ISO-8859-1") ++ commonParams)
+      md5Recurse(md5ToolParam ++ Array("--encoding", "ISO-8859-1") ++ commonParams)
       verify("ISO-8859-1 specified", if (expectForcedUTF8) Codec.UTF8 else Codec.ISO8859)
-      Md5Recurse.main(md5ToolParam ++ Array("--encoding", "UTF-16") ++ commonParams)
+      md5Recurse(md5ToolParam ++ Array("--encoding", "UTF-16") ++ commonParams)
       verify("UTF-16 specified", if (expectForcedUTF8) Codec.UTF8 else Codec("UTF-16"))
     }
 
-    testLocalFileWrittenInEncoding(MD5DATA_EXT, Array("--local"), expectForcedUTF8 = true)
-    testLocalFileWrittenInEncoding(MD5SUM_EXT, Array("--local-md5sum"), expectForcedUTF8 = false)
-    testLocalFileWrittenInEncoding(MD5DATA_EXT, Array("--local", "--print"), expectForcedUTF8 = true)
-    testLocalFileWrittenInEncoding(MD5SUM_EXT, Array("--local-md5sum", "--print"), expectForcedUTF8 = false)
+    // Back in the day md5data files where always written in UTF-8. Since we now use .md5 to contain our data, they follow specified encoding, so I don't use expectForcedUTF8 anymore
+    testLocalFileWrittenInEncoding(MD5SUM_EXT, Array("--local"), expectForcedUTF8 = false)
+    testLocalFileWrittenInEncoding(MD5SUM_EXT, Array("--local", "--print"), expectForcedUTF8 = false)
   }
 
   "encoding" should "write .md5 files files with BOM or not BOM" in {
@@ -297,23 +291,23 @@ class LocalFileUpdateTest extends FlatSpec with TestConfig with TestData {
 
     deleteMd5FileAttributes(testDirPath)
     //    Md5Recurse.main(Array("--local-md5sum", "--local", "-e", "ISO-8859-1", "--globaldir", TEST_EXECUTION_GLOBAL_DIR, testDirPath.path))
-    Md5Recurse.main(Array("--local-md5sum", "--local", "-e", "UTF-8-BOM", "--globaldir", TEST_EXECUTION_GLOBAL_DIR, testDirPath.path))
+    Md5Recurse.main(Array("--local", "-e", "UTF-8-BOM", "--globaldir", TEST_EXECUTION_GLOBAL_DIR, testDirPath.path))
     withClue(localMd5FilePath) {
       localMd5FilePath.exists should be(true)
     }
-    localMd5FilePath.lines().filter(_.contains("\uFEFF")).size >= 1 should be(true)
+    localMd5FilePath.lines().head.startsWith("\uFEFF") should be(true)
 
     localMd5FilePath.delete()
-    Md5Recurse.main(Array("--local-md5sum", "--local", "-e", "UTF-8", "--globaldir", TEST_EXECUTION_GLOBAL_DIR, testDirPath.path))
+    Md5Recurse.main(Array("--local", "-e", "UTF-8", "--globaldir", TEST_EXECUTION_GLOBAL_DIR, testDirPath.path))
     localMd5FilePath.exists should be(true)
     localMd5FilePath.lines().foreach(println(_))
-    localMd5FilePath.lines().filter(_.contains("\uFEFF")).isEmpty should be(true)
+    localMd5FilePath.lines().head.startsWith("\uFEFF") should be(false)
 
     localMd5FilePath.delete()
-    Md5Recurse.main(Array("--local-md5sum", "--local", "-e", "ISO-8859-1", "--globaldir", TEST_EXECUTION_GLOBAL_DIR, testDirPath.path))
+    Md5Recurse.main(Array("--local", "-e", "ISO-8859-1", "--globaldir", TEST_EXECUTION_GLOBAL_DIR, testDirPath.path))
     localMd5FilePath.exists should be(true)
     localMd5FilePath.lines().foreach(println(_))
-    localMd5FilePath.lines().filter(_.contains("\uFEFF")).isEmpty should be(true)
+    localMd5FilePath.lines().head.startsWith("\uFEFF") should be(false)
 
   }
 

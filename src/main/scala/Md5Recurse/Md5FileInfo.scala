@@ -5,6 +5,7 @@ import java.nio.charset.MalformedInputException
 import java.nio.file.attribute.UserDefinedFileAttributeView
 
 import scalax.file.Path
+import scalax.file.defaultfs.DefaultPath
 
 import scala.collection.Map
 import scala.io.Source
@@ -128,11 +129,10 @@ object Md5FileInfo {
     var lineNo = 1
     var lastLine = ""
     var lastCommentForLine: Option[String] = None
+    var currentDir: String = md5dataFile.getParent()
+    var fileList = dirToFileMap.getOrCreateDir(currentDir) // Initial fileList is used for local md5data files
     try {
-      var currentDir: String = md5dataFile.getParent()
-      var fileList = dirToFileMap.getOrCreateDir(currentDir) // Initial fileList is used for local md5data files
-      val source = Source.fromFile(md5dataFile, encoding)
-      for (line <- source.getLines) {
+      for (line <- Path(md5dataFile).lines()) {
         lastLine = line
         if (md5sumWithDataInComment) {
           // For md5sum files we parse an fill in the map immediately
@@ -165,7 +165,6 @@ object Md5FileInfo {
         }
         lineNo += 1
       }
-      source.close
     } catch {
       case e: FileNotFoundException =>
       case e: MalformedInputException => System.err.println("File in different charset encoding, read file with " + encoding + ": " + md5dataFile)
