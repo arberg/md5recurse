@@ -2,6 +2,8 @@ apply plugin: 'scala'
 apply plugin: 'application'
 apply plugin: 'com.github.johnrengelman.shadow'
 
+// Version is inside Md5Recurse.scala
+
 buildscript {
     repositories {
         jcenter()

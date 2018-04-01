@@ -105,7 +105,7 @@ case class Config(
 class Md5OptionParser extends scopt.OptionParser[Config]("Md5Recurse") {
   val TEXT_WRAP = 100
   val TEXT_INDENT = 27
-  head("Md5Recurse", "version 1.0.1")
+  head("Md5Recurse", "version 1.0.2")
 
   note(("Md5Recurse generates MD5 hashes for files recursively within directories or on single files. Data is written to file attributes by default, " +
     "and can also be written with local files in each directory or to a single global file. It is fastest to access a single file, so if enabled md5data will be read from " +
