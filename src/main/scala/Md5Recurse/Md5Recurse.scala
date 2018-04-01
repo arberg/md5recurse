@@ -706,7 +706,7 @@ object Md5Recurse {
               println(s"$prefix File attributes")
             }
             if (config.readMd5DataPrDirectory) {
-              val postfixLocalStorage = "Local MD5 data files pr directory"
+              val postfixLocalStorage = "Local MD5 files pr directory"
               if (config.writeMd5DataPrDirectory) {
                 println(s"$prefix $postfixLocalStorage")
               } else {

@@ -8,8 +8,10 @@ if [ "$1" == "" ] ; then
 	echo "    sudo md5recurse --globaldir /mnt/user/md5 --disable-file-attributes --print-missing -p disk1 /mnt/disk1"
 	echo "  After disk failure: Check MD5  (disable local and file attributes, enable global)"
 	echo "    sudo md5recurse --globaldir /mnt/user/md5 --disable-file-attributes --check -p disk1 /mnt/disk1"
+	echo "  Scan current dir and place md5data in current folder "
+	echo "    md5recurse --globaldir . --local -p user ."
 	echo "  Check md5's of current dir "
-	echo "    md5recurse --local --local-md5sum --check -p user ."
+	echo "    md5recurse --local --check -p user ."
 	echo "  Print md5's to stdout similar to md5sum"
 	echo "    md5recurse --print ."	
 	echo

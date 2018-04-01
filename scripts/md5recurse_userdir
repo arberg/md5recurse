@@ -11,4 +11,4 @@ if [ "$1" == "" ] ; then
 	exit 1
 fi 
 
-/boot/app/md5recurse/bin/md5recurse -e UTF-8-BOM --local --local-md5sum -p user -g /mnt/user/md5 "$@"
+/boot/app/md5recurse/bin/md5recurse -e UTF-8-BOM --local -p user -g /mnt/user/md5 "$@"

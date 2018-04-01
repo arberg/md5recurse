@@ -147,10 +147,6 @@ if [ "$ENABLE_LOCAL_MD5_FILES" == "1" ] ; then
 	OPTIONS="--local $OPTIONS"
 fi
 
-if [ "$ENABLE_LOCAL_MD5SUM_FILES" == "1" ] ; then
-	OPTIONS="--local-md5sum $OPTIONS"
-fi
-
 log "Started with options '${OPTIONS}'"
 
 renice 19 $$ > /dev/null
@@ -183,7 +179,7 @@ if [ "$ENABLE_GLOBAL_MD5_FILES" == "1" ] ; then
 fi
 
 # If we have local files enabled, also scan /mnt/user to we update the local md5 files
-if [ "$ENABLE_LOCAL_MD5_FILES" == "1" ] || [ "$ENABLE_LOCAL_MD5SUM_FILES" == "1" ] ; then
+if [ "$ENABLE_LOCAL_MD5_FILES" == "1" ] ; then
 	execMd5recurse -p user $OPTIONS /mnt/user | tee ${LOGNAME}_user.log 
 	#echo "Clean local md5-files"
 	cleanLocalDirMd5FilesWhichHaveBeenMovedBetweenDisks
