@@ -85,9 +85,8 @@ object Md5FileInfo {
         // lastMod will be negative if file dated before 1970.
         val (md5, lastMod, size, isBinary) = dataLine match {
             case md5DataLineFileAttributeRegExp(md5, b, lastMod, size) => (md5, lastMod, size, b == "1")
-            case _ => {
+            case _ =>
                 throw new ParseException(file.getCanonicalPath + ": File attribute content corrupt: '" + dataLine + " ' ")
-            }
         }
         new Md5FileInfo(FileInfoBasic.create(lastMod.toLong, size.toLong, file), md5, isBinary)
     }
@@ -120,17 +119,17 @@ object Md5FileInfo {
     /**
       * Reads MD5 data files. The reader supports reading concatenated files, where the same directory is mentioned several times. If files appear multiple times, the last file will be remembered
       *
-      * @param md5dataFile
+      * @param md5dataFile the data file
       * @param md5sumWithDataInComment iff true then Reads *.md5 files with comments with timestamp and file size
       * @return
       */
     def readMd5DataFile(md5dataFile: File, md5sumWithDataInComment: Boolean): DirToFileMap = {
-        val dirToFileMap = new DirToFileMap;
+        val dirToFileMap = new DirToFileMap
         val encoding = "UTF-8"
         var lineNo = 1
         var lastLine = ""
         var lastCommentForLine: Option[String] = None
-        var currentDir: String = md5dataFile.getParent()
+        var currentDir: String = md5dataFile.getParent
         var fileList = dirToFileMap.getOrCreateDir(currentDir) // Initial fileList is used for local md5data files
         var warnForMissingMd5DataComment = false
         try {
@@ -175,12 +174,12 @@ object Md5FileInfo {
             case _: MalformedInputException => Console.err.println("File in different charset encoding, read file with " + encoding + ": " + md5dataFile)
             case _: RuntimeException => Console.err.println("Error occurred reading file " + md5dataFile + " @ line " + lineNo + "(will skip rest of file, and regenerate new): " + lastLine)
         }
-        dirToFileMap.setDoneBuilding;
+        dirToFileMap.setDoneBuilding()
         dirToFileMap
     }
 
     def updateMd5FileAttribute(file: File, md5FileInfo: Md5FileInfo): Md5FileInfo = {
-        updateMd5FileAttribute(file, md5FileInfo, false)
+        updateMd5FileAttribute(file, md5FileInfo, isFileAlreadyLocked = false)
     }
 
     def updateMd5FileAttribute(file: File, md5FileInfo: Md5FileInfo, isFileAlreadyLocked: Boolean): Md5FileInfo = {
@@ -190,7 +189,7 @@ object Md5FileInfo {
         // only update changes
         def doUpdate(inputMd5FileInfo: Md5FileInfo) {
             val newDataLine = inputMd5FileInfo.exportAttrLine
-            if (!oldAttr.isDefined || oldAttr.get != newDataLine) {
+            if (oldAttr.isEmpty || oldAttr.get != newDataLine) {
                 if (FileUtil.setAttr(attrView, Md5FileInfo.ATTR_MD5RECURSE, newDataLine)) {
                     if (Md5FileInfo.doLog) println(file + ": Attr written: '" + newDataLine + "'" + " - New lastModified " + file.lastModified())
                 }
@@ -200,11 +199,11 @@ object Md5FileInfo {
         // Lock the file so others cannot write file, while we read it to generate MD5 and then write fileAttribute
         // We don't need the lock on linux, unless the filesystem is mounted NTFS I think. Its probably filesystem dependent not OS dependent.
         val updateAttributeFunction = () => {
-            val lastModifiedBeforeAttributeUpdateWasEqual = md5FileInfo.lastModified() == file.lastModified()
+            val lastModifiedBeforeAttributeUpdateWasEqual = md5FileInfo.lastModified == file.lastModified()
             doUpdate(md5FileInfo)
-            if (lastModifiedBeforeAttributeUpdateWasEqual && file.lastModified() != md5FileInfo.lastModified()) {
-                file.setLastModified(md5FileInfo.lastModified())
-                if (file.lastModified() != md5FileInfo.lastModified()) {
+            if (lastModifiedBeforeAttributeUpdateWasEqual && file.lastModified != md5FileInfo.lastModified) {
+                file.setLastModified(md5FileInfo.lastModified)
+                if (file.lastModified() != md5FileInfo.lastModified) {
                     println("WARNING: Failed to set fileAttribute with same lastModified as file timestamp")
                 }
             }
@@ -216,30 +215,30 @@ object Md5FileInfo {
 
 class Md5FileInfo(fileInfo: FileInfoBasic, md5: String, isBinaryMd5: Boolean) {
 
-    override def toString = exportDataLineFullPath
+    override def toString: String = exportDataLineFullPath
 
-    def md5String = md5
+    def md5String: String = md5
 
-    def getFileInfo(): FileInfoBasic = fileInfo
+    def getFileInfo: FileInfoBasic = fileInfo
 
-    def size(): Long = fileInfo.getSize
+    def size: Long = fileInfo.getSize()
 
-    def lastModified(): Long = fileInfo.getLastModified
+    def lastModified: Long = fileInfo.getLastModified()
 
     //  def file(): File = fileInfo.file
-    def filePath(): String = fileInfo.getPath
+    def filePath: String = fileInfo.getPath()
 
-    def getDirectoryPath(): String = fileInfo.getDirectoryPath
+    def getDirectoryPath: String = fileInfo.getDirectoryPath()
 
-    def fileName(): String = fileInfo.getName
+    def fileName: String = fileInfo.getName
 
-    def exportAttrLine = md5 + " " + (if (isBinaryMd5) "1" else "0") + " " + fileInfo.exportLineWithoutFile
+    def exportAttrLine: String = md5 + " " + (if (isBinaryMd5) "1" else "0") + " " + fileInfo.exportLineWithoutFile
 
-    def exportDataLineFileName = md5 + " " + (if (isBinaryMd5) "1" else "0") + " " + fileInfo.exportLineFileName
+    def exportDataLineFileName: String = md5 + " " + (if (isBinaryMd5) "1" else "0") + " " + fileInfo.exportLineFileName
 
-    def exportDataLineFullPath = md5 + " " + (if (isBinaryMd5) "1" else "0") + " " + fileInfo.exportLineFullPath
+    def exportDataLineFullPath: String = md5 + " " + (if (isBinaryMd5) "1" else "0") + " " + fileInfo.exportLineFullPath
 
-    def exportDataLineComment = s"# " + fileInfo.exportLineWithoutFile
+    def exportDataLineComment: String = s"# " + fileInfo.exportLineWithoutFile
 
     def exportMd5Line = exportDataLineComment + "\n" + md5 + " " + (if (isBinaryMd5) "*" else " ") + fileInfo.getName
 

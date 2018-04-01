@@ -9,6 +9,15 @@ function killGroup() {
 }  
 trap killGroup INT
 
+
+if [ "$USER" != "root" ]
+then
+  echo "WARNING: Not running as root (probably cannot write pid file)"
+  # echo "ERROR: Run as root"
+  # exit 1
+fi  
+
+
 for SCAN_DIR in /mnt/disk* ; do
 	# For debugging: Remove & to make it easier to break and kill for-loop process
 	DISK=$(basename $SCAN_DIR)
