@@ -38,7 +38,7 @@ class Md5RecurseTest extends FlatSpec with TestConfig with TestData {
                         assert(isSorted(files) === true, files)
                         files.clear()
                     } else {
-                        files += Md5FileInfo.parseMd5DataLine("dummydir", line).fileName()
+                        files += Md5FileInfo.parseMd5DataLine("dummydir", line).fileName
                     }
                 }
                 //        println(line)

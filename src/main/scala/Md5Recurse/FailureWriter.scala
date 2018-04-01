@@ -9,10 +9,10 @@ class FailureWriter(config: Config) extends GlobalWriterTrait {
 
     def init() {
         if (msgWriter.isEmpty) {
-            msgWriter = Some(new PrintWriter(config.failureLogFile(), "UTF-8"))
+            msgWriter = Some(new PrintWriter(config.failureLogFile, "UTF-8"))
         }
         if (writer.isEmpty) {
-            writer = Some(new PrintWriter(config.failureFile(), "UTF-8"))
+            writer = Some(new PrintWriter(config.failureFile, "UTF-8"))
         }
     }
 

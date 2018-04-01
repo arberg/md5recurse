@@ -35,11 +35,11 @@ class FileListOrMap {
     }
 
     private def addToMapInner(fileInfo: Md5FileInfo) = {
-        map += (fileInfo.fileName() -> fileInfo)
+        map += (fileInfo.fileName -> fileInfo)
     }
 
     def addToMap(fileInfo: Md5FileInfo) = {
-        if (list != null) fillMap(fileInfo.getDirectoryPath())
+        if (list != null) fillMap(fileInfo.getDirectoryPath)
         addToMapInner(fileInfo)
     }
 }

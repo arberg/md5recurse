@@ -7,6 +7,7 @@ import java.nio.file.attribute.UserDefinedFileAttributeView
 import scalax.file.Path
 
 import scala.collection.Map
+import scala.util.matching.Regex
 //import scalax.file
 //import scalax.file.{FileSystem, Path}
 //
@@ -36,7 +37,7 @@ object Md5FileInfo {
                 val md5 = Md5Recurse.md5Sum(file.getPath)
                 if (md5.isDefined) {
                     val md5FileInfo: Md5FileInfo = create(file, lastModified, md5.get.md5, md5.get.isBinary)
-                    val md5FileInfoUpdated = if (updateFileAttribute) Md5FileInfo.updateMd5FileAttribute(file, md5FileInfo, true) else md5FileInfo
+                    val md5FileInfoUpdated = if (updateFileAttribute) Md5FileInfo.updateMd5FileAttribute(file, md5FileInfo, isFileAlreadyLocked = true) else md5FileInfo
                     Some(md5FileInfoUpdated)
                 }
                 else {
@@ -46,17 +47,17 @@ object Md5FileInfo {
         }
     }
 
-    def create(file: File, lastModified: Long, md5: String, isBinary: Boolean) = {
+    def create(file: File, lastModified: Long, md5: String, isBinary: Boolean): Md5FileInfo = {
         new Md5FileInfo(FileInfoBasic.create(lastModified, file), md5, isBinary)
     }
 
     // Keep regexp as field, because of performance though it uses 20-30% more memory but takes 30% less time
-    val md5SumCommentDataLineRegExp =
+    val md5SumCommentDataLineRegExp: Regex =
         """#\s([-]?\d+)\s(\d+)""".r
-    val md5SumHashDataLineRegExp = """([0-9a-f]+)\s([*]?)(.*)""".r
-    val md5DataLineRegExp = """([0-9a-f]+)\s([01])\s([-]?\d+)\s(\d+)\s(.*)""".r
+    val md5SumHashDataLineRegExp: Regex = """([0-9a-f]+)\s([*]?)(.*)""".r
+    val md5DataLineRegExp: Regex = """([0-9a-f]+)\s([01])\s([-]?\d+)\s(\d+)\s(.*)""".r
 
-    def parseMd5DataLine(dir: String, dataLine: String) = {
+    def parseMd5DataLine(dir: String, dataLine: String): Md5FileInfo = {
         // lastMod will be negative if file dated before 1970.
         val (md5, lastMod: String, size, isBinary, filename) = dataLine match {
             case md5DataLineRegExp(md5, b, lastMod, size, f) => (md5, lastMod, size, b == "1", f)
@@ -65,7 +66,7 @@ object Md5FileInfo {
         new Md5FileInfo(new FileInfoBasic(lastMod.toLong, size.toLong, dir, filename), md5, isBinary)
     }
 
-    def parseMd5SumDataLine(dir: String, commentLine: String, dataLine: String) = {
+    def parseMd5SumDataLine(dir: String, commentLine: String, dataLine: String): Md5FileInfo = {
         // lastMod will be negative if file dated before 1970.
         val (lastMod: String, size) = commentLine match {
             case md5SumCommentDataLineRegExp(lastMod, size) => (lastMod, size)
@@ -78,10 +79,10 @@ object Md5FileInfo {
         new Md5FileInfo(new FileInfoBasic(lastMod.toLong, size.toLong, dir, filename), md5, isBinary)
     }
 
-    val md5DataLineFileAttributeRegExp = """([0-9a-f]+)\s([01])\s([-]?\d+)\s(\d+)""".r
+    val md5DataLineFileAttributeRegExp: Regex = """([0-9a-f]+)\s([01])\s([-]?\d+)\s(\d+)""".r
 
     @throws(classOf[ParseException])
-    def parseMd5FileAttribute(file: File, dataLine: String) = {
+    def parseMd5FileAttribute(file: File, dataLine: String): Md5FileInfo = {
         // lastMod will be negative if file dated before 1970.
         val (md5, lastMod, size, isBinary) = dataLine match {
             case md5DataLineFileAttributeRegExp(md5, b, lastMod, size) => (md5, lastMod, size, b == "1")
@@ -91,7 +92,7 @@ object Md5FileInfo {
         new Md5FileInfo(FileInfoBasic.create(lastMod.toLong, size.toLong, file), md5, isBinary)
     }
 
-    private def doLog: Boolean = {
+    private def logEnabled: Boolean = {
         Config.debugLog || Config.it != null && Config.it.logMd5ScansSkippedAndPrintDetails // Config null when directly executed from unit test
     }
 
@@ -101,10 +102,10 @@ object Md5FileInfo {
         val dataLine: Option[String] = FileUtil.getAttr(attrView, ATTR_MD5RECURSE)
         if (Config.it.logMd5ScansSkippedAndLocalAndAttributeReads) println("Reading fileAttribute " + file.getName + ": " + (if (dataLine.isDefined) "Found" else "Not available"))
         if (dataLine.isDefined) {
-            if (doLog) println(file + ": Attr read: '" + dataLine.get + "'")
+            if (logEnabled) println(file + ": Attr read: '" + dataLine.get + "'")
             Some(parseMd5FileAttribute(file, dataLine.get))
         } else {
-            if (doLog) println(file + ": No Attr")
+            if (logEnabled) println(file + ": No Attr")
             None
         }
     }
@@ -191,7 +192,7 @@ object Md5FileInfo {
             val newDataLine = inputMd5FileInfo.exportAttrLine
             if (oldAttr.isEmpty || oldAttr.get != newDataLine) {
                 if (FileUtil.setAttr(attrView, Md5FileInfo.ATTR_MD5RECURSE, newDataLine)) {
-                    if (Md5FileInfo.doLog) println(file + ": Attr written: '" + newDataLine + "'" + " - New lastModified " + file.lastModified())
+                    if (Md5FileInfo.logEnabled) println(file + ": Attr written: '" + newDataLine + "'" + " - New lastModified " + file.lastModified())
                 }
             }
         }
@@ -240,7 +241,7 @@ class Md5FileInfo(fileInfo: FileInfoBasic, md5: String, isBinaryMd5: Boolean) {
 
     def exportDataLineComment: String = s"# " + fileInfo.exportLineWithoutFile
 
-    def exportMd5Line = exportDataLineComment + "\n" + md5 + " " + (if (isBinaryMd5) "*" else " ") + fileInfo.getName
+    def exportMd5Line: String = exportDataLineComment + "\n" + md5 + " " + (if (isBinaryMd5) "*" else " ") + fileInfo.getName
 
     def createUpdateTimestamp = new Md5FileInfo(fileInfo.createUpdateLastModified(), md5, isBinaryMd5)
 }
