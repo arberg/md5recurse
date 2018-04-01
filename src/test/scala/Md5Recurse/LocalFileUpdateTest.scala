@@ -25,26 +25,26 @@ class LocalFileUpdateTest extends FlatSpec with TestConfig with TestData {
       val innerLoops = 10000
       val loops = totalLoops / innerLoops
 
-      def doPeformanceRun(task: () => Unit, name: String): Unit = {
+      def doPerformanceRun(task: () => Unit, name: String): Unit = {
         // warm up
-        for (i <- 1 to 100) {
+        for (_ <- 1 to 100) {
           task.apply()
         }
         val timer = new Timer()
-        for (i <- 1 to loops) {
+        for (_ <- 1 to loops) {
           task.apply()
         }
-        val milli = timer.elapsedMilli
+        val milli = timer.elapsedMilli()
         println(name + " time passed " + milli + "ms")
       }
 
-      doPeformanceRun(() => for (i <- 1 to innerLoops) "oseth", "string")
-      doPeformanceRun(() => for (i <- 1 to innerLoops) file.getPath, "getPath")
-      doPeformanceRun(() => for (i <- 1 to innerLoops) file.getAbsolutePath, "AbsolutePath")
-      doPeformanceRun(() => for (i <- 1 to innerLoops) file.getCanonicalPath, "CanonicalPath")
-      doPeformanceRun(() => for (i <- 1 to innerLoops) file.getCanonicalFile, "CanonicalFile")
-      doPeformanceRun(() => for (i <- 1 to innerLoops) file.getCanonicalFile.getCanonicalPath, "CanonicalFile.CanonicalPath")
-      doPeformanceRun(() => for (i <- 1 to innerLoops) file.getCanonicalFile.getCanonicalFile.getCanonicalFile.getCanonicalPath, "CanonicalFile.CanonicalPath")
+      doPerformanceRun(() => for (_ <- 1 to innerLoops) "oseth", "string")
+      doPerformanceRun(() => for (_ <- 1 to innerLoops) file.getPath, "getPath")
+      doPerformanceRun(() => for (_ <- 1 to innerLoops) file.getAbsolutePath, "AbsolutePath")
+      doPerformanceRun(() => for (_ <- 1 to innerLoops) file.getCanonicalPath, "CanonicalPath")
+      doPerformanceRun(() => for (_ <- 1 to innerLoops) file.getCanonicalFile, "CanonicalFile")
+      doPerformanceRun(() => for (_ <- 1 to innerLoops) file.getCanonicalFile.getCanonicalPath, "CanonicalFile.CanonicalPath")
+      doPerformanceRun(() => for (_ <- 1 to innerLoops) file.getCanonicalFile.getCanonicalFile.getCanonicalFile.getCanonicalPath, "CanonicalFile.CanonicalPath")
     }
   }
 
@@ -93,17 +93,17 @@ class LocalFileUpdateTest extends FlatSpec with TestConfig with TestData {
       if (md5ToolParam.contains("--local"))
         localMd5FilePath.lastModified should be(localMd5LastModified)
       else
-        localMd5FilePath.lastModified should not be(localMd5LastModified)
+        localMd5FilePath.lastModified should not be localMd5LastModified
 
       // Modify the local data file, so lines are not correctly sorted, and run again. File should still be up2date
-      val localMd5LinesBeforeReversal = localMd5FilePath.lines().toList
+      // val localMd5LinesBeforeReversal = localMd5FilePath.lines().toList
       localMd5FilePath.write("Dummy")
       val localMd5LinesAfterReversal = localMd5FilePath.lines().toList
       filepath1.lastModified = localMd5FilePath.lastModified // update timestamp of file in dir, so we should rescan dir
       runMd5Recurse()
       // Compare actual content instead of timestamps, because then we don't have to sleep to get another lastModified
       localMd5FilePath.lines().foreach(println)
-      localMd5FilePath.lines().toList should not be (localMd5LinesAfterReversal)
+      localMd5FilePath.lines().toList should not be localMd5LinesAfterReversal
 //      localMd5FilePath.lines().toList should be(localMd5LinesBeforeReversal)
 
       // Delete the source files and check that md5 file gets cleaned up
@@ -144,8 +144,8 @@ class LocalFileUpdateTest extends FlatSpec with TestConfig with TestData {
     assertFilesContainExactlyOnce(MD5_NEW_CONTENT, localMd5FilePath)
 
     filepath1.write(NEW_CONTENT_STRING2) // filestamp changed, so use --check-all
-    val (_, error) = md5RecurseGetOutputAndError(params :+ "--check-all", true)
-    error should not include ("Failed verification")
+    val (_, error) = md5RecurseGetOutputAndError(params :+ "--check-all", doEcho = true)
+    error should not include "Failed verification"
   }
 
   "With disabled fileAttributes" should "not read or write fileAttributes" in {
@@ -200,7 +200,7 @@ class LocalFileUpdateTest extends FlatSpec with TestConfig with TestData {
     val filepath = testDirPath / "dummy1.log"
     filepath.exists should be(true)
 
-    def repeatTest(params: Array[String]) = {
+    def repeatTest(params: Array[String]) {
       def lastMod() = FileInfoBasic.create(new File(filepath.path)).getLastModified()
 
       println()
@@ -209,7 +209,7 @@ class LocalFileUpdateTest extends FlatSpec with TestConfig with TestData {
       copyTestResources
       Md5Recurse.main(params)
       val firstLastModified = lastMod()
-      for (i <- 1 to 4) {
+      for (_ <- 1 to 4) {
         Thread.sleep(20)
         Md5Recurse.main(params)
         val currentLastMod = lastMod()
@@ -282,10 +282,10 @@ class LocalFileUpdateTest extends FlatSpec with TestConfig with TestData {
       verify("UTF-16 specified", if (expectForcedUTF8) Codec.UTF8 else Codec("UTF-16"))
     }
 
-    testLocalFileWrittenInEncoding(MD5DATA_EXT, Array("--local"), true)
-    testLocalFileWrittenInEncoding(MD5SUM_EXT, Array("--local-md5sum"), false)
-    testLocalFileWrittenInEncoding(MD5DATA_EXT, Array("--local", "--print"), true)
-    testLocalFileWrittenInEncoding(MD5SUM_EXT, Array("--local-md5sum", "--print"), false)
+    testLocalFileWrittenInEncoding(MD5DATA_EXT, Array("--local"), expectForcedUTF8 = true)
+    testLocalFileWrittenInEncoding(MD5SUM_EXT, Array("--local-md5sum"), expectForcedUTF8 = false)
+    testLocalFileWrittenInEncoding(MD5DATA_EXT, Array("--local", "--print"), expectForcedUTF8 = true)
+    testLocalFileWrittenInEncoding(MD5SUM_EXT, Array("--local-md5sum", "--print"), expectForcedUTF8 = false)
   }
 
   "encoding" should "write .md5 files files with BOM or not BOM" in {
