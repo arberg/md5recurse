@@ -308,7 +308,7 @@ class Md5RecurseTest extends FlatSpec with TestConfig with TestData {
         val testDirPath = copyTestResources / "simple"
         val localMd5FilePath = testDirPath / Path(MD5SUM_EXT)
 
-        md5Recurse("-g", testDirPath.path, "--local", testDirPath.path)
+        md5Recurse("-g", TEST_EXECUTION_GLOBAL_DIR, "--local", testDirPath.path)
 
         // Now remove the comment from the .md5 line, and check that the missing comment is not detected, meaning we did not read the local file
         localMd5FilePath.exists should be(true)
@@ -320,7 +320,7 @@ class Md5RecurseTest extends FlatSpec with TestConfig with TestData {
             val (_, error) = md5RecurseGetOutputAndError(params)
             error.contains("Missing md5data") should be(expectWarning)
         }
-        runAndCheckMissingComment(Array("-g", testDirPath.path, "--local", testDirPath.path), false)
+        runAndCheckMissingComment(Array("-g", TEST_EXECUTION_GLOBAL_DIR, "--local", testDirPath.path), false)
         // Now check error does contain warning (testing that the test idea still works)
         runAndCheckMissingComment(Array("--local", testDirPath.path), true)
     }

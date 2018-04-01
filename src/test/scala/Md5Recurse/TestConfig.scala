@@ -19,7 +19,7 @@ trait TestConfig extends FlatSpec with TestHelper {
   val TEST_EXECUTION_DIR = "build/testExecution"
   val TEST_EXECUTION_DIR_PATH = Path.fromString(TEST_EXECUTION_DIR)
   val TEST_EXECUTION_DIR_FILE = new File(TEST_EXECUTION_DIR)
-  val TEST_EXECUTION_GLOBAL_DIR = TEST_EXECUTION_DIR + "/globalDir"
+  val TEST_EXECUTION_GLOBAL_DIR: String = TEST_EXECUTION_DIR + "/globalDir"
   val TEST_EXECUTION_GLOBAL_DIR_PATH = Path.fromString(TEST_EXECUTION_DIR + "/globalDir")
   val SRC_TEST_RES_FILES_DIR = "src/test/res/files"
   private val SRC_TEST_RES_DIR_PATH = Path.fromString(SRC_TEST_RES_FILES_DIR)

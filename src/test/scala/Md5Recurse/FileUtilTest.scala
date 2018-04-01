@@ -9,7 +9,7 @@ import org.scalatest.junit.JUnitRunner
 @RunWith(classOf[JUnitRunner])
 class FileUtilTest extends FlatSpec with Matchers with TestConfig {
 
-  "FileUtil" should "should read/write attributes" in {
+  "FileUtil" should "read/write attributes" in {
     val testDirPath = copyTestResources
     val path = testDirPath / "dummy1.log"
     val f = new File(path.path)
