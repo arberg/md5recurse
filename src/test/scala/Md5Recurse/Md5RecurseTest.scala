@@ -203,7 +203,7 @@ class Md5RecurseTest extends FlatSpec with TestConfig with TestData {
         }
 
         println("-------- AFTER Modifing files ---- doing " + paramOnlyPrintModified)
-        // file attributes have been disabled to avoid first call updating lastModified timetamp
+        // file attributes have been disabled to avoid first call updating lastModified timestamp
         assertOutput(md5RecurseGetOutput(paramsModified :+ testDirPath.path))
         assertOutput(md5RecurseGetOutput(paramsModified :+ testDirPath.toAbsolute.path))
 
