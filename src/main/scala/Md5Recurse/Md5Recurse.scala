@@ -107,7 +107,7 @@ case class Config(
 class Md5OptionParser extends scopt.OptionParser[Config]("Md5Recurse") {
     val TEXT_WRAP = 100
     val TEXT_INDENT = 27
-    head("Md5Recurse", "version 1.0.2")
+    head("Md5Recurse", "version 1.0.3")
 
     note(("Md5Recurse generates MD5 hashes for files recursively within directories or on single files. Data is written to file attributes by default, " +
         "and can also be written with local files in each directory or to a single global file. It is fastest to access a single file, so if enabled md5data will be read from " +
@@ -139,9 +139,10 @@ class Md5OptionParser extends scopt.OptionParser[Config]("Md5Recurse") {
     } text
         """verify MD5 of all files even files with newer timestamps. Prints warning if file content changed. Updated hash values are written to md5data storage. """.replaceAll("\n", "").replaceAll("[ ]+", " ").wordWrap(TEXT_WRAP, TEXT_INDENT)
 
-    opt[Unit]("print-missing") action { (_, c) =>
+    opt[Unit]("only-print-missing") action { (_, c) =>
         c.copy(doGenerateNew = false, doPrintMissing = true, writeMd5DataGlobally = false)
-    } text "print missing/deleted files based on globaldir set. Local files will not be read. New MD5's will not be generated in this mode, nor will md5data be updated.".wordWrap(TEXT_WRAP, TEXT_INDENT)
+    } text "only print missing/deleted files based on globaldir set. Local files will not be read. New MD5's will not be generated in this mode, nor will md5data be updated.".wordWrap(TEXT_WRAP,
+        TEXT_INDENT)
 
     opt[Unit]("print-modified") action { (_, c) =>
         c.copy(doPrintModified = true)
@@ -224,7 +225,7 @@ class Md5OptionParser extends scopt.OptionParser[Config]("Md5Recurse") {
         if (!(c.doPrintMissing || !c.doGenerateNew) || (c.srcDirs.nonEmpty && c.readMd5DataPrDirectory || c.md5dataGlobalFolder.isDefined)) success else failure("Please specify directories for md5-generation")
     }
     checkConfig { c =>
-        if (c.doPrintMissing && c.md5dataGlobalFolder.isEmpty) failure("--print-missing requires --globaldir") else success
+        if (c.doPrintMissing && c.md5dataGlobalFolder.isEmpty) failure("--only-print-missing requires --globaldir") else success
     }
     checkConfig { c =>
         // read assert logic as !(x => y), thus assert x => y (and x => y is the same as !x || y)

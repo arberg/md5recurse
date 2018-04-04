@@ -2,9 +2,7 @@ package Md5Recurse
 
 import java.io.File
 
-import org.junit.runner.RunWith
 import org.scalatest._
-import org.scalatest.junit.JUnitRunner
 import scalax.file.Path
 import scalax.io.Codec
 
@@ -12,7 +10,6 @@ import scala.collection.immutable
 import scala.collection.mutable.ListBuffer
 import scala.util.Random
 
-@RunWith(classOf[JUnitRunner])
 class Md5RecurseTest extends FlatSpec with TestConfig with TestData {
 
     class CommonInvoker(commonParams: Array[String]) {
@@ -83,7 +80,7 @@ class Md5RecurseTest extends FlatSpec with TestConfig with TestData {
     "Md5Recurse find missing files from global" should "print missing file (test both relative and absolute path)" in {
         val testDirPath = copyTestResources
         val params = Array("-q", "--globaldir", TEST_EXECUTION_GLOBAL_DIR)
-        val paramsMissing = params :+ "--print-missing"
+        val paramsMissing = params :+ "--only-print-missing"
 
         // Generate global file, then check no missing is printed
         md5Recurse(params :+ testDirPath.path)
@@ -165,14 +162,14 @@ class Md5RecurseTest extends FlatSpec with TestConfig with TestData {
     }
 
     "Md5Recurse find missing files without global dir" should "fail" in {
-        val (_, stdErr) = md5RecurseGetOutputAndError(Array("--print-missing", TEST_EXECUTION_DIR), false)
-        stdErr should include("Error: --print-missing requires --globaldir")
+        val (_, stdErr) = md5RecurseGetOutputAndError(Array("--only-print-missing", TEST_EXECUTION_DIR), false)
+        stdErr should include("Error: --only-print-missing requires --globaldir")
     }
 
     "Md5Recurse find missing files with local dir" should "warn user local dir is unused" in {
         val testDirPath = copyTestResources
         println(testDirPath.path)
-        val (stdOut, _) = md5RecurseGetOutputAndError(Array("--globaldir", TEST_EXECUTION_GLOBAL_DIR, "--print-missing", "--local", testDirPath.path), true)
+        val (stdOut, _) = md5RecurseGetOutputAndError(Array("--globaldir", TEST_EXECUTION_GLOBAL_DIR, "--only-print-missing", "--local", testDirPath.path), true)
         stdOut should include("WARNING: local dir files will not be read when searching for missing files")
     }
 

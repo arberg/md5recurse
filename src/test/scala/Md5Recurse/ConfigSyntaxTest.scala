@@ -1,10 +1,7 @@
 package Md5Recurse
 
-import org.junit.runner.RunWith
 import org.scalatest._
-import org.scalatest.junit.JUnitRunner
 
-@RunWith(classOf[JUnitRunner])
 class ConfigSyntaxTest extends FlatSpec with TestConfig with TestData with TestHelper {
 
   "Config" should "not allow double globaldir" in {

@@ -2,11 +2,8 @@ package Md5Recurse
 
 import java.io.File
 
-import org.junit.runner.RunWith
 import org.scalatest._
-import org.scalatest.junit.JUnitRunner
 
-@RunWith(classOf[JUnitRunner])
 class FileUtilTest extends FlatSpec with Matchers with TestConfig {
 
   "FileUtil" should "read/write attributes" in {
@@ -26,6 +23,5 @@ class FileUtilTest extends FlatSpec with Matchers with TestConfig {
     FileUtil.deleteAttr(FileUtil.attrView(f), name)
     FileUtil.getAttr(FileUtil.attrView(f), name) should be (None)
   }
-
 
 }

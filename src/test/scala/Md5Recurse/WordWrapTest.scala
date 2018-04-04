@@ -2,14 +2,11 @@ package Md5Recurse
 
 import org.scalatest.{FlatSpec, Matchers}
 import WordWrap._
-import org.junit.runner.RunWith
-import org.scalatest.junit.JUnitRunner
 
 /**
   * Created by Alex on 28-12-2016.
   */
 // https://github.com/vfarcic/TechnologyConversationsScala/blob/master/src/test/scala/com/wordpress/technologyconversations/learning/kata/solutions/WordWrapTest.scala
-@RunWith(classOf[JUnitRunner])
 class WordWrapTest extends FlatSpec with Matchers {
   "WordWrap" should "return empty string is no text is specified" in {
     "".wordWrap(10) should be ("")
