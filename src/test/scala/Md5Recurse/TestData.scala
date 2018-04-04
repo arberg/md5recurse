@@ -5,6 +5,9 @@ package Md5Recurse
   */
 trait TestData {
 
+  val DIR_ONLY_TWO_FILES = "onlyTwoFiles"
+  val FILENAME_ONLY_TWO_FILES_1 = "dummy1a.log"
+  val FILENAME_ONLY_TWO_FILES_2 = "testfileРС_WithNonISO8859-chars_in_name_Looking_like_PC.log"
   val DIR_SIMPLE = "simple"
   val MD5_SIMPLE = "c4ca4238a0b923820dcc509a6f75849b"
   val FILENAME_SIMPLE = "simple.log"

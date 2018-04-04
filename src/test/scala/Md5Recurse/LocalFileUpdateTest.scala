@@ -187,35 +187,41 @@ class LocalFileUpdateTest extends FlatSpec with TestConfig with TestData {
     //  }
 
     // Test fails because of bug I havn't solved yet
-    "With enabled fileAttributes" should "write fileAttribute with correct timestamp so we don't think file modified on next scan" in {
-        val testDirPath = copyTestResources
-        val filepath = testDirPath / "dummy1.log"
-        filepath.exists should be(true)
+    "With enabled fileAttributes" should "write fileAttribute without changing lastModified timestamp of file so we don't think file modified on next scan" in {
+        val testDirPath = copyTestResources / DIR_ONLY_TWO_FILES
+        val filepath1 = testDirPath / FILENAME_ONLY_TWO_FILES_1
+        val filepath2 = testDirPath / FILENAME_ONLY_TWO_FILES_2
+        filepath1.exists should be(true)
+        filepath2.exists should be(true)
 
         def repeatTest(params: Array[String]) {
-            def lastMod() = FileInfoBasic.create(new File(filepath.path)).getLastModified()
-
             println()
             // If I don't copyTestResources then below won't update file modified timestamp on each run.
             // Ah if just once we manage to run two consequtive scans within same second they get same lastModified and we will stop rescanning, because fileAttribute becomes correct
             copyTestResources
-            Md5Recurse.main(params)
-            val firstLastModified = lastMod()
-            for (_ <- 1 to 4) {
-                Thread.sleep(20)
-                Md5Recurse.main(params)
-                val currentLastMod = lastMod()
-                if (currentLastMod != firstLastModified) {
-                    println("ERROR: File changed")
-                }
-                println(getAttr(filepath).get)
-                assert(currentLastMod === firstLastModified)
+            val lastModifiedBeforeWritingAttribute1 = filepath1.lastModified
+            val lastModified2 = filepath2.lastModified // track whether OS has detected time has passed, by following second file
+            getAttr(filepath1) should be(empty)
+            md5Recurse(params)
+            var lasti = -1
+            assert(lastModified2 == filepath2.lastModified)
+            for (i <- 0 to 10 if lastModified2 == filepath2.lastModified) {
+                if (i > 0) Thread.sleep(20)
+                lasti = i
+                filepath2.write("" + i)
+                md5Recurse(params)
+                assert(filepath1.lastModified === lastModifiedBeforeWritingAttribute1)
             }
+            assert(lasti >= 0) // loop above should have executed at least once
+            val attr = getAttr(filepath1)
+            assert(attr.isDefined)
+            println("File attribute: " + attr.get)
+            assert(lastModified2 != filepath2.lastModified) // If this fails we need more loops
         }
 
-        repeatTest(Array("-V", "1", filepath.path))
-        repeatTest(Array("-g", testDirPath.path, filepath.path))
-        repeatTest(Array("-V", "1", "--local", filepath.path))
+        repeatTest(Array("-V", "1", testDirPath.path)) // just file attributes
+        repeatTest(Array("-g", TEST_EXECUTION_GLOBAL_DIR, testDirPath.path)) // with global
+        repeatTest(Array("-V", "1", "--local", testDirPath.path)) // with local
     }
 
     "With enabled fileAttributes a renamed file" should " not be rescanned" in {
