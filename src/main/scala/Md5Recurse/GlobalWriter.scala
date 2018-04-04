@@ -17,10 +17,11 @@ class GlobalWriter(config: Config) extends GlobalWriterTrait {
 
     class GlobalWriterReal(config: Config) {
         val tmpGlobalDataFile = new File(config.tmpMd5dataGlobalFilePath)
+        val globalDataDirector = tmpGlobalDataFile.getParentFile
         val writer: PrintWriter = new PrintWriter(tmpGlobalDataFile, "UTF-8")
 
         def write(dir: File, md5s: List[Md5FileInfo], doFlush: Boolean) {
-            writeGlobalMd5data(writer, dir, md5s, doFlush)
+            writeGlobalMd5data(writer, dir, md5s, doFlush, Config.it.useRelativePathsInGlobalFile, globalDataDirector)
         }
 
         def close() {

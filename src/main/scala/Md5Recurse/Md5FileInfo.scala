@@ -120,7 +120,7 @@ object Md5FileInfo {
     /**
       * Reads MD5 data files. The reader supports reading concatenated files, where the same directory is mentioned several times. If files appear multiple times, the last file will be remembered
       *
-      * @param md5dataFile the data file
+      * @param md5dataFile             the data file
       * @param md5sumWithDataInComment iff true then Reads *.md5 files with comments with timestamp and file size
       * @return
       */
@@ -130,6 +130,7 @@ object Md5FileInfo {
         var lineNo = 1
         var lastLine = ""
         var lastCommentForLine: Option[String] = None
+        var relativePathPrefix: String = if (Config.it.useRelativePathsInGlobalFile) md5dataFile.getParent + "/" else ""
         var currentDir: String = md5dataFile.getParent
         var fileList = dirToFileMap.getOrCreateDir(currentDir) // Initial fileList is used for local md5data files
         var warnForMissingMd5DataComment = false
@@ -157,7 +158,7 @@ object Md5FileInfo {
                     // For md5data files we postpone parsing and esp filling in map with Md5FileInfo to avoid the memory usage blowup for the entire global file
                     if (line.startsWith(">")) {
                         // New directory
-                        currentDir = line.substring(1)
+                        currentDir = relativePathPrefix + line.substring(1)
                         // Converting to absolute dir has a tiny performance price. It makes scanning an 82MB global file with 122.000 dirs take 1.6 sec instead of 0.7 sec.
                         // It makes possible for a user to modify global files without to much care about getting slashes and absolute paths correct in string+case comparison perfect
                         // This absolute conversion has only been done on the directory not the files in the directory

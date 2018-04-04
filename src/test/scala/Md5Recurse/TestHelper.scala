@@ -10,6 +10,26 @@ import scalax.file.Path
   * Created by Alex on 26-12-2016.
   */
 trait TestHelper extends FlatSpec with Matchers {
+
+  def replaceMd5LineInFile(md5DataFile: Path, filename: String, newMd5: String) {
+    val linesUpdated = replaceMd5Line(md5DataFile.lines().toList, "simple.log", "a" * 32)
+    md5DataFile.write(linesUpdated.mkString("\n"))
+  }
+
+  /**
+    * Finds the line containing filename and replaces its first 32 chars with newMd5
+    */
+  def replaceMd5Line(md5DataLines: List[String], filename: String, newMd5: String) = {
+    md5DataLines.map(line => {
+      // Replace MD5
+      if (line.endsWith("simple.log")) {
+        ("a" * 32) + line.substring(32)
+      } else {
+        line
+      }
+    })
+  }
+
   def assertFileNotContains(expectedSubString: String, paths: Path*): Unit = {
     paths foreach (p => assertFilesContainExactly(expectedSubString, 0, p))
   }

@@ -13,6 +13,11 @@ import scalax.file.Path
 
 trait TestConfig extends FlatSpec with TestHelper {
 
+  val paramDisableFileAttributes = "--disable-file-attributes"
+  val paramGlobalDir = "--globaldir"
+  val paramGlobalDirShort = "-g"
+  val paramGlobalDirRelative = "--globaldir-relative"
+  val paramGlobalDirRelativeShort = "-G"
   val MD5DATA_EXT = ".md5data"
   val MD5SUM_EXT = ".md5"
 

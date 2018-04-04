@@ -20,12 +20,12 @@ repositories {
 mainClassName = 'Md5Recurse.Md5Recurse'
 
 dependencies {
-    // Scalax io library is not updated to scala 2.12, maybe play with migrating to better-files instead
+    // Scalax io library is not updated to scala 2.12, maybe play with migrating to better-files instead. better-files has relativize path that works and I now use.
     implementation 'org.scala-lang:scala-library:2.11.8'
     implementation 'com.github.scala-incubator.io:scala-io-file_2.11:0.4.3-1' // Last update 2014, so apparently left behind
 
-//    // https://mvnrepository.com/artifact/com.github.pathikrit/better-files
-//    compile group: 'com.github.pathikrit', name: 'better-files_2.11', version: '3.4.0'
+    // https://mvnrepository.com/artifact/com.github.pathikrit/better-files
+    compile 'com.github.pathikrit:better-files_2.11:3.4.0'
 
     // https://mvnrepository.com/artifact/com.sksamuel.scalax/scalax_2.11
     implementation group: 'com.sksamuel.scalax', name: 'scalax_2.11', version: '1.26.0'

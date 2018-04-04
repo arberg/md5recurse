@@ -5,17 +5,13 @@ import java.security.MessageDigest
 import java.text.SimpleDateFormat
 import java.util.Calendar
 
-import scala.collection.mutable
-
-// IntelliJ frequently deletes the import or changes it:
-// import WordWrap._
-import WordWrap._
+import Util.WordWrap._
 import com.twmacinta.util.MD5
 import scalax.file.Path
 import scalax.io.Codec
 
-import scala.collection._
 import scala.collection.immutable.Seq
+import scala.collection.{mutable, _}
 
 // We keep an execution log so our tests can monitor what the program did, when it is difficult to determine by seeing output
 object ExecutionLog {
@@ -74,12 +70,18 @@ case class Config(
                      writeMd5DataGlobally: Boolean = false,
                      readMd5DataPrDirectory: Boolean = false,
                      writeMd5DataPrDirectory: Boolean = false,
+                     useRelativePathsInGlobalFile: Boolean = false,
+                     optionGlobalRelative: Boolean = false,
+                     optionGlobalNonRelative: Boolean = false,
                      alwaysUpdateLocal: Boolean = false,
                      silenceWarnings: Boolean = false,
                      printMd5: Boolean = false,
                      useFileAttributes: Boolean = true) {
 
-//    def md5DataExtension: String = md5DataPrDirFilename
+    val md5dataGlobalFolderAbsoluteFile = md5dataGlobalFolder.map(_.getAbsoluteFile)
+    val md5dataGlobalFolderAbsolutePath = md5dataGlobalFolderAbsoluteFile.map(_.getPath)
+
+    //    def md5DataExtension: String = md5DataPrDirFilename
 
     def md5SumExtension: String = md5sumPrDirFilename
 
@@ -91,9 +93,13 @@ case class Config(
 
     def md5dataGlobalName: String = md5FilePrefix + md5DataGlobalFileName
 
-    def md5dataGlobalFilePath: String = md5dataGlobalFolder.get.getAbsolutePath + "/" + md5dataGlobalName
+    def md5dataGlobalFolderPath: String = md5dataGlobalFolderAbsolutePath.get
 
-    def tmpMd5dataGlobalFilePath: String = md5dataGlobalFolder.get.getAbsolutePath + "/temp_" + md5dataGlobalName
+    def md5dataGlobalFilePath: String = md5dataGlobalFolderAbsolutePath.get + "/" + md5dataGlobalName
+
+    def tmpMd5dataGlobalFileName: String = "temp_" + md5dataGlobalName
+
+    def tmpMd5dataGlobalFilePath: String = md5dataGlobalFolderAbsolutePath.get + "/" + tmpMd5dataGlobalFileName
 
     def failureFile: File = new File(md5dataGlobalFolder.get.getAbsolutePath + "/" + Sys.currentDateString + (if (md5FilePrefix.isEmpty) "" else "_") + md5FilePrefix + Config.it.failedVerificationFilePostfix)
 
@@ -149,12 +155,12 @@ class Md5OptionParser extends scopt.OptionParser[Config]("Md5Recurse") {
     } text "print filenames with modified timestamp.".wordWrap(TEXT_WRAP, TEXT_INDENT)
 
     opt[File]('g', "globaldir") valueName "<dir>" action { (x, c) =>
-        if (!c.doPrintMissing) {
-            c.copy(md5dataGlobalFolder = Some(x), writeMd5DataGlobally = true, readMd5DataGlobally = true)
-        } else {
-            c.copy(md5dataGlobalFolder = Some(x))
-        }
+        c.copy(md5dataGlobalFolder = Some(x), writeMd5DataGlobally = !c.doPrintMissing, readMd5DataGlobally = true, useRelativePathsInGlobalFile = false, optionGlobalNonRelative = true)
     } text "The directory to store the global MD5 info in a flat file. Note with global enabled missing MD5's will still be read from local in each directory file if such files exists".wordWrap(TEXT_WRAP, TEXT_INDENT)
+
+    opt[File]('G', "globaldir-relative") valueName "<dir>" action { (x, c) =>
+        c.copy(md5dataGlobalFolder = Some(x), writeMd5DataGlobally = !c.doPrintMissing, readMd5DataGlobally = true, useRelativePathsInGlobalFile = true, optionGlobalRelative = true)
+    } text ("same as globaldir, but paths will be relative to the directory of this global file").wordWrap(TEXT_WRAP, TEXT_INDENT)
 
     opt[Unit]("local") action { (_, c) =>
         c.copy(readMd5DataPrDirectory = true, writeMd5DataPrDirectory = true)
@@ -216,6 +222,9 @@ class Md5OptionParser extends scopt.OptionParser[Config]("Md5Recurse") {
     help("help") text "prints this help"
     version("version") text "print version"
 
+    checkConfig { c =>
+        if (!c.optionGlobalNonRelative || !c.optionGlobalRelative) success else failure("Use only one of --globaldir (-g) and --globaldir-relative (-G)")
+    }
     checkConfig { c =>
         if (c.readMd5DataGlobally || c.readMd5DataPrDirectory || c.useFileAttributes || c.deleteMd5) success else failure("Please choose storage to read from")
     }
@@ -423,7 +432,10 @@ object Md5Recurse {
         }
 
         // loop files (exclude *.md5)
-        for (f <- files if f.isFile if !f.getName.endsWith(Config.it.md5SumExtension) if !FileUtil.isSymLink(f)) {
+        val isInGlobalFileDir = dir.getPath == Config.it.md5dataGlobalFolderPath
+        for (f <- files if f.isFile;
+             name = f.getName
+             if !name.endsWith(Config.it.md5SumExtension) if !FileUtil.isSymLink(f) if (!isInGlobalFileDir || name != Config.it.tmpMd5dataGlobalFileName && name != Config.it.md5dataGlobalName)) {
 
             def generateMd5(isFileSeenBefore: Boolean) = {
                 val debugInfo = if (isFileSeenBefore) "Generate " else "New "

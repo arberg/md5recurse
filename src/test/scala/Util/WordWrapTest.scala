@@ -1,7 +1,7 @@
-package Md5Recurse
+package Util
 
+import Util.WordWrap._
 import org.scalatest.{FlatSpec, Matchers}
-import WordWrap._
 
 /**
   * Created by Alex on 28-12-2016.

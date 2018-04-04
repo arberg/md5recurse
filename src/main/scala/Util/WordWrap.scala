@@ -1,4 +1,5 @@
-package Md5Recurse
+// Use different package than Md5Recurse to avoid intelliJ breaking import Wordwrap._ whenever there's a compile failure
+package Util
 
 // https://github.com/vfarcic/TechnologyConversationsScala/blob/master/src/test/scala/com/wordpress/technologyconversations/learning/kata/solutions/WordWrapTest.scala
 object WordWrap {

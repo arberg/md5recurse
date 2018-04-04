@@ -23,7 +23,7 @@ class FailureWriter(config: Config) extends GlobalWriterTrait {
                 msgWriter.get.println(failure)
             }
             msgWriter.get.flush
-            writeGlobalMd5data(writer.get, dir, failureMd5s, true)
+            writeGlobalMd5data(writer.get, dir, failureMd5s, true, false, config.failureLogFile.getParentFile)
             writer.get.flush
         }
     }
