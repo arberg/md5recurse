@@ -100,6 +100,7 @@ class Md5RecurseTest extends FlatSpec with TestConfig with TestData {
             val (_, err) = md5RecurseGetOutputAndError(params, true)
             err should include(errorString)
         }
+
         evalCheckForError(Array(paramGlobalDirRelative, ".", paramGlobalDir, ".", "nonExistentDummy"))
         evalCheckForError(Array(paramGlobalDir, ".", paramGlobalDirRelative, ".", "nonExistentDummy"))
         evalCheckForError(Array(paramGlobalDirRelativeShort, ".", paramGlobalDirShort, ".", "nonExistentDummy"))
@@ -145,18 +146,20 @@ class Md5RecurseTest extends FlatSpec with TestConfig with TestData {
             //      doMd5RecursePath(testDirPath / "a")
             //      verifyMd5DataSorting(TEST_EXECUTION_GLOBAL_DIR_PATH / "sorting_global.md5data")
         }
-
     }
 
-    it should "print missing file (test both relative and absolute path)" in {
+    it should "print missing file (test both scan-dir in relative and absolute format)" in {
         val testDirPath = copyTestResources
         val params = Array("-q", "--globaldir", TEST_EXECUTION_GLOBAL_DIR)
+        val globalFile = TEST_EXECUTION_GLOBAL_FILE
         val paramsMissing = params :+ "--only-print-missing"
 
         // Generate global file, then check no missing is printed
         md5Recurse(params :+ testDirPath.path)
         md5RecurseGetOutput(paramsMissing :+ testDirPath.path, false) should not include ("Missing")
 
+        val newFile = testDirPath / "newFile.foobar"
+        newFile.write(NEW_CONTENT_STRING)
         val file1 = testDirPath / "dummy1.log"
         val file2 = testDirPath / "simple" / "simple.log"
         val file1PathString = file1.toAbsolute.path
@@ -172,6 +175,44 @@ class Md5RecurseTest extends FlatSpec with TestConfig with TestData {
 
         assertOutput(md5RecurseGetOutput(paramsMissing :+ testDirPath.path))
         assertOutput(md5RecurseGetOutput(paramsMissing :+ testDirPath.toAbsolute.path))
+        val lines = globalFile.lines().toList
+        lines.filter(_.contains(MD5_NEW_CONTENT)).isEmpty should be(true) // we should not have updated md5 global data file
+        lines.filter(_.contains(newFile.name)).isEmpty should be(true) // we should not have updated md5 global data file
+    }
+
+    it should "print modified file" in {
+        val testDirPath = copyTestResources / DIR_SIMPLE
+        val params = Array("--globaldir", TEST_EXECUTION_GLOBAL_DIR, "-V", "3")
+        val globalFile = TEST_EXECUTION_GLOBAL_FILE
+        val paramsModified = params :+ paramOnlyPrintModified
+
+        // Generate global file, then check no missing is printed
+        md5Recurse(params :+ testDirPath.path)
+        md5RecurseGetOutput(paramsModified :+ testDirPath.path, true) should not include ("Modified") // Here we have not modified files yet
+
+        val file2 = testDirPath / FILENAME_SIMPLE
+        val filePathString = file2.toAbsolute.path
+        file2.write(NEW_CONTENT_STRING)
+
+        def assertOutput(output: String): Unit = {
+            val outputLines: Array[String] = output.split(Sys.lineSeparator)
+            // all three lines below are pretty equal
+//            output should include("Modified " + filePathString)
+            outputLines.exists(_ == "Modified " + filePathString) should be(true)
+//            outputLines.exists(_.matches("^Modified.*" + file2.name + "$")) should be(true)
+        }
+
+        println("-------- AFTER Modifing files ---- doing " + paramOnlyPrintModified)
+        // file attributes have been disabled to avoid first call updating lastModified timetamp
+        assertOutput(md5RecurseGetOutput(paramsModified :+ testDirPath.path))
+        assertOutput(md5RecurseGetOutput(paramsModified :+ testDirPath.toAbsolute.path))
+
+        // Check md5data file was not updated, and then run a normal scan and verify it was updated
+        println("-------- AFTER Test - doing regular scan")
+        globalFile.lines().filter(_.contains(MD5_NEW_CONTENT)).isEmpty should be(true) // we should not have updated md5 global data file
+        globalFile.lines().foreach(println)
+        md5Recurse(params :+ testDirPath.path)
+        globalFile.lines().filter(_.contains(MD5_NEW_CONTENT)).isEmpty should be(false) // now we should se changed file
     }
 
     it should "parse correctly with slashes on windows" in {
@@ -310,7 +351,7 @@ class Md5RecurseTest extends FlatSpec with TestConfig with TestData {
         println("-----*")
         // silent scan should not echo info
         val out2 = md5RecurseGetOutput(Array("--globaldir", TEST_EXECUTION_GLOBAL_DIR, "-q", testdir.path))
-        out2 should not include(".disable_md5 found")
+        out2 should not include (".disable_md5 found")
     }
 
     "Md5Recurse file changed" should "update file attribute" in {
@@ -438,6 +479,17 @@ class Md5RecurseTest extends FlatSpec with TestConfig with TestData {
         Md5Recurse.main(Array("--local", dir.getPath))
 
         fileMd5Sum.exists() should be(false)
+       }
+
+    "Md5Recurse simple no-arg" should "print error" in {
+        md5RecurseGetError(Array()) should include("Error: Missing argument")
+    }
+
+    behavior of "Non-tests"
+
+    ignore should "print help - a non-test" in {
+        // my getOutput does not catch it
+        md5Recurse(Array("--help"))
     }
 
 }

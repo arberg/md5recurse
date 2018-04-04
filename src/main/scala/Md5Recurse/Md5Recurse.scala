@@ -51,11 +51,10 @@ case class Config(
                      logMd5ScansSkippedAndLocalAndAttributeReads: Boolean = false,
                      logMd5ScansSkippedAndPrintDetails: Boolean = false,
                      logPostFix: String = "",
-                     //  verboseMd5Sum: Boolean = false,
                      quiet: Boolean = false,
                      doVerify: Boolean = false,
                      doVerifyModified: Boolean = false,
-                     doGenerateNew: Boolean = true,
+                     doGenerateMd5ForNewAndExistingNewerFiles: Boolean = true,
                      doPrintMissing: Boolean = false, // requires doGenerateNew=false to work properly
                      doPrintModified: Boolean = false,
 
@@ -67,17 +66,19 @@ case class Config(
                      failedVerificationFilePostfix: String = "_global_failed.md5data",
                      errorsFilePostfix: String = "_global-errors.md5data",
                      readMd5DataGlobally: Boolean = false,
-                     writeMd5DataGlobally: Boolean = false,
                      readMd5DataPrDirectory: Boolean = false,
                      writeMd5DataPrDirectory: Boolean = false,
                      useRelativePathsInGlobalFile: Boolean = false,
                      optionGlobalRelative: Boolean = false,
                      optionGlobalNonRelative: Boolean = false,
+                     optionLocal: Boolean = false,
+                     optionOnlyPrintModified: Boolean = false,
                      alwaysUpdateLocal: Boolean = false,
                      silenceWarnings: Boolean = false,
                      printMd5: Boolean = false,
                      useFileAttributes: Boolean = true) {
 
+    val writeMd5DataGlobally = !doPrintMissing && !doPrintModified && md5dataGlobalFolder.isDefined
     val md5dataGlobalFolderAbsoluteFile = md5dataGlobalFolder.map(_.getAbsoluteFile)
     val md5dataGlobalFolderAbsolutePath = md5dataGlobalFolderAbsoluteFile.map(_.getPath)
 
@@ -93,7 +94,7 @@ case class Config(
 
     def md5dataGlobalName: String = md5FilePrefix + md5DataGlobalFileName
 
-    def md5dataGlobalFolderPath: String = md5dataGlobalFolderAbsolutePath.get
+    def md5dataGlobalFolderPathOption: Option[String] = md5dataGlobalFolderAbsolutePath
 
     def md5dataGlobalFilePath: String = md5dataGlobalFolderAbsolutePath.get + "/" + md5dataGlobalName
 
@@ -113,6 +114,9 @@ case class Config(
 class Md5OptionParser extends scopt.OptionParser[Config]("Md5Recurse") {
     val TEXT_WRAP = 100
     val TEXT_INDENT = 27
+
+    def pruneAndWrapText(text: String) = text.replaceAll("\n", "").replaceAll("[ ]+", " ").wordWrap(TEXT_WRAP, TEXT_INDENT)
+
     head("Md5Recurse", "version 1.0.3")
 
     note(("Md5Recurse generates MD5 hashes for files recursively within directories or on single files. Data is written to file attributes by default, " +
@@ -127,64 +131,73 @@ class Md5OptionParser extends scopt.OptionParser[Config]("Md5Recurse") {
         // Use getCanonicalPath because on Windows filenames are not case sensitive, but its a lot slower so only use it for inputs
         // We convert paths as early as possible so we don't have to convert them every step of the way
         c.copy(srcDirs = c.srcDirs :+ x.getCanonicalFile)
-    } text "dirs on which to execute recursive MD5 generation or with --check then recurse MD5 check\n"
+    } text pruneAndWrapText("dirs on which to execute recursive MD5 generation or with --check then recurse MD5 check\n")
 
     opt[Unit]("reread-all") action { (_, c) =>
         c.copy(doVerify = true)
-    } text "force read and regen md5 of existing unmodified files and compare with last recorded md5, and print warning for all mismatching files (will write to stderr or globaldir)".wordWrap(TEXT_WRAP, TEXT_INDENT)
+    } text pruneAndWrapText("force read and regen md5 of existing unmodified files and compare with last recorded md5, and print warning for all mismatching files (will write to stderr or globaldir)")
 
     opt[Unit]('c', "check") action { (_, c) =>
-        c.copy(doVerify = true, doGenerateNew = false)
+        c.copy(doVerify = true)
     } text
-        """verify MD5 of existing unmodified files, ie. files with same modification timestamp as the timestamp of the previous hash. Prints
-            warning if file content changed. Does not scan new files or files with modified timestamp. Updated hash values are written to
-            global and/or local md5data files (overwriting input). Hashes but no warnings will be generated for files with newer timestamp.""".replaceAll("\n", "").replaceAll("[ ]+", " ").wordWrap(TEXT_WRAP, TEXT_INDENT)
+        pruneAndWrapText(
+            """verifies MD5 of existing unmodified files, ie. files with same modification timestamp as the timestamp of the previous hash. Prints
+            warning if file content changed, and logs entry with original hash to log-file. As with a regular scan, all new and modified files are also scanned, and
+            updated hash values are written to data storage.""")
 
     opt[Unit]("check-all") action { (_, c) =>
-        c.copy(doVerify = true, doVerifyModified = true, doGenerateNew = false)
-    } text
-        """verify MD5 of all files even files with newer timestamps. Prints warning if file content changed. Updated hash values are written to md5data storage. """.replaceAll("\n", "").replaceAll("[ ]+", " ").wordWrap(TEXT_WRAP, TEXT_INDENT)
+        c.copy(doVerify = true, doVerifyModified = true)
+    } text pruneAndWrapText("""same as --check, but verifies MD5 of all files even files with newer timestamps.""")
+
+    opt[Unit]("only-check") action { (_, c) =>
+        c.copy(doVerify = true, doGenerateMd5ForNewAndExistingNewerFiles = false)
+    } text pruneAndWrapText(
+        """same as --check, but does not scan new files nor files with modified timestamp. Updates hash values are written to
+            data storage, and the original hashes for modified files with identical timestamps are written to a log file.""")
 
     opt[Unit]("only-print-missing") action { (_, c) =>
-        c.copy(doGenerateNew = false, doPrintMissing = true, writeMd5DataGlobally = false)
-    } text "only print missing/deleted files based on globaldir set. Local files will not be read. New MD5's will not be generated in this mode, nor will md5data be updated.".wordWrap(TEXT_WRAP,
-        TEXT_INDENT)
+        c.copy(doGenerateMd5ForNewAndExistingNewerFiles = false, doPrintMissing = true)
+    } text pruneAndWrapText("only print missing/deleted files based on globaldir set. Local files will not be read. New MD5's will not be generated in this mode, nor will md5data be updated.")
+
+    opt[Unit]("only-print-modified") action { (_, c) =>
+        c.copy(doGenerateMd5ForNewAndExistingNewerFiles = false, doPrintModified = true, useFileAttributes = false, optionOnlyPrintModified = true)
+    } text pruneAndWrapText("only print modified files based on globaldir set. Local files and fileattributes will not be read. New MD5's will not be generated in this mode, nor will md5data be updated.")
 
     opt[Unit]("print-modified") action { (_, c) =>
         c.copy(doPrintModified = true)
-    } text "print filenames with modified timestamp.".wordWrap(TEXT_WRAP, TEXT_INDENT)
+    } text pruneAndWrapText("print filenames with modified timestamp.".wordWrap(TEXT_WRAP, TEXT_INDENT))
 
     opt[File]('g', "globaldir") valueName "<dir>" action { (x, c) =>
-        c.copy(md5dataGlobalFolder = Some(x), writeMd5DataGlobally = !c.doPrintMissing, readMd5DataGlobally = true, useRelativePathsInGlobalFile = false, optionGlobalNonRelative = true)
-    } text "The directory to store the global MD5 info in a flat file. Note with global enabled missing MD5's will still be read from local in each directory file if such files exists".wordWrap(TEXT_WRAP, TEXT_INDENT)
+        c.copy(md5dataGlobalFolder = Some(x), readMd5DataGlobally = true, useRelativePathsInGlobalFile = false, optionGlobalNonRelative = true)
+    } text pruneAndWrapText("The directory to store the global MD5 info in a flat file. Note with global enabled missing MD5's will still be read from local in each directory file if such files exists")
 
     opt[File]('G', "globaldir-relative") valueName "<dir>" action { (x, c) =>
-        c.copy(md5dataGlobalFolder = Some(x), writeMd5DataGlobally = !c.doPrintMissing, readMd5DataGlobally = true, useRelativePathsInGlobalFile = true, optionGlobalRelative = true)
-    } text ("same as globaldir, but paths will be relative to the directory of this global file").wordWrap(TEXT_WRAP, TEXT_INDENT)
+        c.copy(md5dataGlobalFolder = Some(x), readMd5DataGlobally = true, useRelativePathsInGlobalFile = true, optionGlobalRelative = true)
+    } text pruneAndWrapText("same as globaldir, but paths will be relative to the directory of this global file")
 
     opt[Unit]("local") action { (_, c) =>
-        c.copy(readMd5DataPrDirectory = true, writeMd5DataPrDirectory = true)
-    } text "Enable reading and writing .md5 files in each directory"
+        c.copy(readMd5DataPrDirectory = true, writeMd5DataPrDirectory = true, optionLocal = true)
+    } text pruneAndWrapText("Enable reading and writing .md5 files in each directory")
 
     opt[Unit]("local-update-all") action { (_, c) =>
         c.copy(alwaysUpdateLocal = true)
-    } text "Always updates local files and attributes (when enabled) even if no changes found in files in directory"
+    } text pruneAndWrapText("Always updates local files and attributes (when enabled) even if no changes found in files in directory")
 
     opt[String]('p', "prefix") valueName "<local-file-prefix>" action { (x, c) =>
         c.copy(md5FilePrefix = x, logPostFix = s" ($x)")
-    } text "prefix for global and local dir files: The <prefix>.md5data and <prefix>_global.md5data data files for this program and <prefix>.md5 in md5sum-format"
+    } text pruneAndWrapText("prefix for global and local dir files: The <prefix>.md5data and <prefix>_global.md5data data files for this program and <prefix>.md5 in md5sum-format")
 
     opt[Unit]("disable-file-attributes") action { (_, c) =>
         c.copy(useFileAttributes = false)
-    } text "disable reading and writing user file attributes which saves the MD5 and timestamp of last scan directly in the files attributes".wordWrap(TEXT_WRAP, TEXT_INDENT)
+    } text pruneAndWrapText("disable reading and writing user file attributes which saves the MD5 and timestamp of last scan directly in the files attributes".wordWrap(TEXT_WRAP, TEXT_INDENT))
 
     opt[Unit]("deletemd5") action { (_, c) =>
         c.copy(deleteMd5 = true)
-    } text "recursively delete local/pr directory MD5 sum files (both .md5data and .md5sum). All hash-generation is disabled when this option is applied".wordWrap(TEXT_WRAP, TEXT_INDENT)
+    } text pruneAndWrapText("recursively delete local/pr directory MD5 sum files (both .md5data and .md5sum). All hash-generation is disabled when this option is applied".wordWrap(TEXT_WRAP, TEXT_INDENT))
 
     opt[Unit]("silence-warnings") action { (_, c) =>
         c.copy(silenceWarnings = true)
-    } text "don't print warnings for files which could not be read or where file attributes could not be updated"
+    } text pruneAndWrapText("don't print warnings for files which could not be read or where file attributes could not be updated")
 
     opt[String]('e', "encoding") valueName "<charset>" action { (x, c) =>
         if (x == "UTF-8-BOM") {
@@ -192,11 +205,13 @@ class Md5OptionParser extends scopt.OptionParser[Config]("Md5Recurse") {
         } else {
             c.copy(encoding = x, encodingBom = false)
         }
-    } text "the charset for the .md5 files for md5sum. This setting will not affect .md5data files. Encodings: UTF-8 (default), UTF-8-BOM (UTF-8 with BOM), ISO-8859-1 (see https://docs.oracle.com/javase/7/docs/api/java/nio/charset/Charset.html). Note that many windows programs will need the UTF-8 with BOM to correctly parse files, while the linux md5sum program fails to parse the BOM character.".wordWrap(TEXT_WRAP, TEXT_INDENT)
+    } text pruneAndWrapText("the charset for the .md5 files for md5sum. This setting will not affect .md5data files. Encodings: UTF-8 (default), " +
+        "UTF-8-BOM (UTF-8 with BOM), ISO-8859-1 (see https://docs.oracle.com/javase/7/docs/api/java/nio/charset/Charset.html). Note that many windows programs will need the UTF-8 with BOM to " +
+        "correctly parse files, while the linux md5sum program fails to parse the BOM character.")
 
     opt[Unit]('p', "print") action { (_, c) =>
         c.copy(printMd5 = true)
-    } text "print MD5 hashes to stdout"
+    } text pruneAndWrapText("print MD5 hashes to stdout")
 
     def verboseCopy(c: Config, level: Int): Config =
         c.copy(
@@ -209,15 +224,15 @@ class Md5OptionParser extends scopt.OptionParser[Config]("Md5Recurse") {
 
     opt[Unit]('v', "verbose") action { (_, c) =>
         verboseCopy(c, 1)
-    } text "verbose level 1"
+    } text pruneAndWrapText("verbose level 1")
 
     opt[Int]('V', "verboselevel") valueName "<level>" action { (x, c) =>
         verboseCopy(c, x)
-    } text "set verbose level 0: none (default), 1: print files being read for md5sum, 2: print all files, 3: even more, with +10 log performance (ie. 12 means performance+print all files)".wordWrap(TEXT_WRAP, TEXT_INDENT)
+    } text pruneAndWrapText("set verbose level 0: none (default), 1: print files being read for md5sum, 2: print all files, 3: even more, with +10 log performance (ie. 12 means performance+print all files)")
 
     opt[Unit]('q', "quiet") action { (_, c) =>
         c.copy(quiet = true)
-    } text "don't print missing source dirs"
+    } text pruneAndWrapText("don't print missing source dirs")
 
     help("help") text "prints this help"
     version("version") text "print version"
@@ -226,12 +241,20 @@ class Md5OptionParser extends scopt.OptionParser[Config]("Md5Recurse") {
         if (!c.optionGlobalNonRelative || !c.optionGlobalRelative) success else failure("Use only one of --globaldir (-g) and --globaldir-relative (-G)")
     }
     checkConfig { c =>
+        // Not sure we need this, but should definitiely prevent updating local files
+        if (!c.optionOnlyPrintModified || !c.optionLocal) success else failure("Use of --only-print-modified prevents --local")
+    }
+    checkConfig { c =>
         if (c.readMd5DataGlobally || c.readMd5DataPrDirectory || c.useFileAttributes || c.deleteMd5) success else failure("Please choose storage to read from")
     }
     checkConfig { c =>
         // read assert logic as !(x => y), thus assert x => y (and x => y is the same as !x || y)
         // if printing or checking then either global md5 must be enabled or src-folder with local read must be enabled
-        if (!(c.doPrintMissing || !c.doGenerateNew) || (c.srcDirs.nonEmpty && c.readMd5DataPrDirectory || c.md5dataGlobalFolder.isDefined)) success else failure("Please specify directories for md5-generation")
+        if (!(c.doPrintMissing || c.doPrintModified || !c.doGenerateMd5ForNewAndExistingNewerFiles) || (c.srcDirs.nonEmpty && c.readMd5DataPrDirectory || c.md5dataGlobalFolder.isDefined)) {
+            success
+        } else {
+            failure("Please specify directories for md5-generation")
+        }
     }
     checkConfig { c =>
         if (c.doPrintMissing && c.md5dataGlobalFolder.isEmpty) failure("--only-print-missing requires --globaldir") else success
@@ -240,17 +263,17 @@ class Md5OptionParser extends scopt.OptionParser[Config]("Md5Recurse") {
         // read assert logic as !(x => y), thus assert x => y (and x => y is the same as !x || y)
         // if printing or checking then either global md5 must be enabled or src-folder with local read must be enabled
     {
-        if (c.doPrintMissing && c.readMd5DataPrDirectory) println("WARNING: local dir files will not be read when searching for missing files")
+        if (c.doPrintMissing && c.readMd5DataPrDirectory) Console.out.println("WARNING: local dir files will not be read when searching for missing files")
         success
     }
     }
     checkConfig { c =>
         // src dirs may only be empty when printing or checking
-        if (c.srcDirs.nonEmpty || !c.doGenerateNew) success else failure("Please specify directories for md5-generation")
+        if (c.srcDirs.nonEmpty || !c.doGenerateMd5ForNewAndExistingNewerFiles) success else failure("Please specify directories for md5-generation")
     }
     checkConfig { c =>
         // src dirs may only be empty when printing or checking
-        if (c.quiet && c.logMd5Scans) println("Quiet and verbose specified at the same time")
+        if (c.quiet && c.logMd5Scans) Console.out.println("Quiet and verbose specified at the same time")
         success
     }
 }
@@ -269,7 +292,7 @@ object Md5Recurse {
 
     def initNativeLibrary() {
         if (!MD5.initNativeLibrary()) {
-            println("WARNING: Native library NOT loaded")
+            Console.out.println("WARNING: Native library NOT loaded")
         }
     }
 
@@ -298,21 +321,21 @@ object Md5Recurse {
                 def equals[T](list1: T, list2: T) = {
                     val equals = list1 == list2
                     if (equals) {
-                        if (Config.it.logMd5ScansAndSkipped) println("Identical local file " + file)
+                        if (Config.it.logMd5ScansAndSkipped) Console.out.println("Identical local file " + file)
                     }
                     equals
                 }
 
                 // Disabled check content changed, because now we instead test timestamps of files, and the timestamp check is not so valuable if we don't update timestamp of equal files. Md5Sum files can be equal even if lastModified of a file changed.
                 //        if (!path.exists/* || !equals(outLines, path.lines().toList)*/) {
-                if (Config.it.logMd5ScansAndSkipped) println("Updating local file " + file)
+                if (Config.it.logMd5ScansAndSkipped) Console.out.println("Updating local file " + file)
                 try {
                     path.writeStrings(strings = outLines, separator = "\n")
                 } catch {
                     case exception: scalax.io.ScalaIOException =>
                         exception.getCause() match {
                             case _: java.nio.charset.UnmappableCharacterException =>
-                                println(s"WARNING: Character could not be written as with encoding $encoding, file will be written using UTF-8: $file")
+                                Console.out.println(s"WARNING: Character could not be written as with encoding $encoding, file will be written using UTF-8: $file")
                                 path.writeStrings(strings = outLines, separator = "\n")(Codec.UTF8)
                             case _ => throw exception
                         }
@@ -322,7 +345,7 @@ object Md5Recurse {
                 }
                 //        } // end equal
             } else if (file.exists) {
-                if (!file.delete()) println("Failed to delete " + file)
+                if (!file.delete()) Console.out.println("Failed to delete " + file)
             }
         } catch {
             case _: scalax.io.ScalaIOException => Console.err.println("Error occurred writing file: " + file)
@@ -346,7 +369,7 @@ object Md5Recurse {
     def printMd5Hashes(dirPath: File, md5s: List[Md5FileInfo]) {
         if (md5s.nonEmpty) {
             // dirPath will be null if single file scan
-            if (dirPath != null) println(">" + md5s.head.getDirectoryPath)
+            if (dirPath != null) Console.out.println(">" + md5s.head.getDirectoryPath)
             for (md5 <- md5s) println(md5.exportMd5Line)
             Console.out.flush()
         }
@@ -427,12 +450,12 @@ object Md5Recurse {
         if (Config.it.doPrintMissing && globalDirSet.isDefined) {
             for ((_, md5FileInfo: Md5FileInfo) <- globalDirSet.get
                  if !new File(dir, md5FileInfo.getFileInfo.getName).exists()) {
-                println("Missing " + md5FileInfo.getFileInfo.getDirectoryPath() + File.separatorChar + md5FileInfo.getFileInfo.getName)
+                Console.out.println("Missing " + md5FileInfo.getFileInfo.getDirectoryPath() + File.separatorChar + md5FileInfo.getFileInfo.getName)
             }
         }
 
         // loop files (exclude *.md5)
-        val isInGlobalFileDir = dir.getPath == Config.it.md5dataGlobalFolderPath
+        val isInGlobalFileDir = Config.it.md5dataGlobalFolderPathOption contains dir.getPath
         for (f <- files if f.isFile;
              name = f.getName
              if !name.endsWith(Config.it.md5SumExtension) if !FileUtil.isSymLink(f) if (!isInGlobalFileDir || name != Config.it.tmpMd5dataGlobalFileName && name != Config.it.md5dataGlobalName)) {
@@ -444,7 +467,7 @@ object Md5Recurse {
                 if (fInfoMd5Option.isEmpty) {
                     failureMsgs += "Error reading file " + f
                 } else {
-                    if (config.logMd5Scans) println(debugInfo + " " + fInfoMd5Option.get)
+                    if (config.logMd5Scans) Console.out.println(debugInfo + " " + fInfoMd5Option.get)
                     md5s += fInfoMd5Option.get
                 }
             }
@@ -479,22 +502,22 @@ object Md5Recurse {
                 }
             }
 
-            greatestLastModifiedTimestampInDir = Math.max(greatestLastModifiedTimestampInDir, f.lastModified())
             fileCount += 1
+            greatestLastModifiedTimestampInDir = Math.max(greatestLastModifiedTimestampInDir, f.lastModified())
             val currentFileInfo = FileInfoBasic.create(f)
             val recordedMd5InfoOption: Option[Md5FileInfo] = getNewestMd5FileInfo()
             if (recordedMd5InfoOption.isDefined) {
                 if (config.logMd5ScansSkippedAndPrintDetails) {
-                    println(currentFileInfo.getPath())
+                    Console.out.println(currentFileInfo.getPath())
                 }
                 val recordedMd5Info: Md5FileInfo = recordedMd5InfoOption.get
                 val recordedFileInfo = recordedMd5Info.getFileInfo
                 if (config.logMd5ScansSkippedAndPrintDetails) {
-                    println("Cur lastMod=" + currentFileInfo.getLastModified() + ", len=" + recordedFileInfo.getSize())
-                    println("Rec lastMod=" + recordedFileInfo.getLastModified() + ", len=" + recordedFileInfo.getSize() + ", md5=" + recordedMd5Info.md5String)
+                    Console.out.println("Cur lastMod=" + currentFileInfo.getLastModified() + ", len=" + recordedFileInfo.getSize())
+                    Console.out.println("Rec lastMod=" + recordedFileInfo.getLastModified() + ", len=" + recordedFileInfo.getSize() + ", md5=" + recordedMd5Info.md5String)
                 }
                 val isFileTimestampIdentical = currentFileInfo.getLastModified() == recordedFileInfo.getLastModified()
-                if (!isFileTimestampIdentical && Config.it.doPrintModified) println("Modified " + f)
+                if (!isFileTimestampIdentical && Config.it.doPrintModified) Console.out.println("Modified " + f)
                 if (isFileTimestampIdentical || Config.it.doVerifyModified) {
                     //  still check if file size change, to generate new md5
                     if (Config.it.doVerify) {
@@ -512,23 +535,23 @@ object Md5Recurse {
                                 failureMsgs += msg
                                 failures += recordedMd5Info
                             } else {
-                                if (config.logMd5Scans) println("Verified " + f)
+                                if (config.logMd5Scans) Console.out.println("Verified " + f)
                             }
                             md5s += fInfoMd5
                         }
                     } else {
                         // Old non-verified file
-                        if (config.logMd5ScansAndSkipped) println("Hash exists with matching file timestamp, file read skipped: " + f)
+                        if (config.logMd5ScansAndSkipped) Console.out.println("Hash exists with matching file timestamp, file read skipped: " + f)
                         if (config.useFileAttributes && config.alwaysUpdateLocal) Md5FileInfo.updateMd5FileAttribute(f, recordedMd5Info)
                         md5s += recordedMd5Info // timestamp updated on windows NTFS if fileAttributes written
                     }
-                } else {
+                } else if (Config.it.doGenerateMd5ForNewAndExistingNewerFiles) {
                     // File with modified lastModified
                     generateMd5(true)
                 }
             } else {
                 // New file
-                if (config.doGenerateNew) generateMd5(false)
+                if (config.doGenerateMd5ForNewAndExistingNewerFiles) generateMd5(false)
             }
         }
         (md5s.toList, failures.toList, failureMsgs.toList, isFileUpdated, greatestLastModifiedTimestampInDir)
@@ -604,7 +627,7 @@ object Md5Recurse {
             })
         ) {
             // If I evaluate dir inside for-loop with ';dir = dirMap._1' then the ordering of the traversal changes
-            if (Config.debugLog) println("Writing outside dir: " + dir)
+            if (Config.debugLog) Console.out.println("Writing outside dir: " + dir)
             dataFileUpdater.updateFilesIncludePendingChanges(dir, fileSet.removeDirListMap(dir).get)
         }
         dataFileUpdater.updateFilesFinalPendingChanges()
@@ -623,7 +646,7 @@ object Md5Recurse {
         val md5dataPath = dirPath / filenameToDelete
         if (md5dataPath.exists) {
             for (p <- dirPath ** filenameToDelete) {
-                println("Deleting local md5sum file '" + p.path + "' due to '" + Config.it.disableMd5ForDirFilename + "' file found")
+                Console.out.println("Deleting local md5sum file '" + p.path + "' due to '" + Config.it.disableMd5ForDirFilename + "' file found")
                 p.delete()
             }
         }
@@ -659,9 +682,9 @@ object Md5Recurse {
                 postScan(file, md5s, failureMd5s, failureMessages, isFileUpdated, greatestLastModifiedTimestampInDir)
             }
         } else if (Config.it.doPrintMissing) {
-            println("MissingDir " + dirOrFile)
+            Console.out.println("MissingDir " + dirOrFile)
             for ((f, _) <- fileSet.getDir(dirOrFile).get) {
-                println("  " + f)
+                Console.out.println("  " + f)
             }
         }
     }
@@ -686,7 +709,7 @@ object Md5Recurse {
                 new DirToFileMap()
             }
 
-        if (config.doGenerateNew || config.srcDirs.nonEmpty) {
+        if (config.doGenerateMd5ForNewAndExistingNewerFiles || config.srcDirs.nonEmpty) {
             Timer("Md5Recurse.Scan files", config.logPerformance) {
                 () => execVerifySrcDirList(recurse = true, config.srcDirs.map(_.getPath()), fileSet, dataFileUpdater)
             }
@@ -705,9 +728,9 @@ object Md5Recurse {
                 f: File =>
                     if (f.getName == config.md5sumName /* || f.getName == config.md5dataName - todo delete */ ) {
                         if (f.delete()) {
-                            println("Deleted " + f)
+                            Console.out.println("Deleted " + f)
                         } else {
-                            println("Failed to delete " + f)
+                            Console.out.println("Failed to delete " + f)
                         }
                     }
             })
@@ -717,12 +740,12 @@ object Md5Recurse {
     def main(args: Array[String]): Unit = {
         ExecutionLog.current = new ExecutionLog
         val parser = new Md5OptionParser // parser.parse returns Option[C]
-        parser.parse(args, Config()) map {
+        parser.parse(args, Config()) foreach {
             config =>
                 Config.it = config
                 FileUtil.silenceReadErrors = config.silenceWarnings
                 for (d <- config.srcDirs if !d.exists()) {
-                    if (!config.quiet) println("Src folder does not exist: " + d)
+                    if (!config.quiet) Console.out.println("Src folder does not exist: " + d)
                 }
                 if (config.deleteMd5) {
                     deleteMd5s(config)
@@ -730,22 +753,22 @@ object Md5Recurse {
                     if (!config.quiet) {
                         val prefix = "Storage enabled:"
                         if (config.useFileAttributes) {
-                            println(s"$prefix File attributes")
+                            Console.out.println(s"$prefix File attributes")
                         }
                         if (config.readMd5DataPrDirectory) {
                             val postfixLocalStorage = "Local MD5 files pr directory"
                             if (config.writeMd5DataPrDirectory) {
-                                println(s"$prefix $postfixLocalStorage")
+                                Console.out.println(s"$prefix $postfixLocalStorage")
                             } else {
-                                println(s"$prefix Will read but not update $postfixLocalStorage")
+                                Console.out.println(s"$prefix Will read but not update $postfixLocalStorage")
                             }
                         }
                         if (config.readMd5DataGlobally) {
                             val postfixLocalStorage = "Global MD5 data file"
                             if (config.writeMd5DataGlobally) {
-                                println(s"$prefix $postfixLocalStorage")
+                                Console.out.println(s"$prefix $postfixLocalStorage")
                             } else {
-                                println(s"$prefix Will read but not update $postfixLocalStorage")
+                                Console.out.println(s"$prefix Will read but not update $postfixLocalStorage")
                             }
                         }
                     }
@@ -756,9 +779,6 @@ object Md5Recurse {
                         () => execute(config)
                     }
                 }
-                None // Output to map is ignored
-        } getOrElse {
-            // arguments are bad, usage message will have been displayed
         }
     }
 

@@ -117,6 +117,11 @@ trait TestHelper extends FlatSpec with Matchers {
     output
   }
 
+  def md5RecurseGetError(params: Array[String], doEcho: Boolean = true): String = {
+    val (_, err) = md5RecurseGetOutputAndError(params, doEcho)
+    err
+  }
+
   def md5RecurseGetOutputAndError(params: Array[String], doEcho: Boolean = false): (String, String) = {
     val streamErr = new java.io.ByteArrayOutputStream()
     val streamOut = new java.io.ByteArrayOutputStream()
