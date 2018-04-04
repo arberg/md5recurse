@@ -648,6 +648,7 @@ object Md5Recurse {
                         }
                     }
                 } else {
+                    if (!Config.it.quiet) Console.out.println(Config.it.disableMd5ForDirFilename + " found - skipped " + dir)
                     val dirPath = Path.fromString(dir.getPath)
                     if (Config.it.writeMd5DataPrDirectory) recursivelyDeleteLocalMd5WithMessageIfExists(dirPath, Config.it.md5sumName)
                 }

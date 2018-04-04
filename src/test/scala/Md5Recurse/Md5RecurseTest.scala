@@ -304,8 +304,13 @@ class Md5RecurseTest extends FlatSpec with TestConfig with TestData {
         val globalFile = Path.fromString(TEST_EXECUTION_GLOBAL_DIR) / "_global.md5data"
         globalFile.delete(true)
         assert(globalFile.exists === false)
-        md5Recurse(Array("-q", "--globaldir", TEST_EXECUTION_GLOBAL_DIR, "-V", "3", testdir.path))
+        val out = md5RecurseGetOutput(Array("--globaldir", TEST_EXECUTION_GLOBAL_DIR, testdir.path))
+        out should include(".disable_md5 found")
         globalFile.lines().toList.size should be(0)
+        println("-----*")
+        // silent scan should not echo info
+        val out2 = md5RecurseGetOutput(Array("--globaldir", TEST_EXECUTION_GLOBAL_DIR, "-q", testdir.path))
+        out2 should not include(".disable_md5 found")
     }
 
     "Md5Recurse file changed" should "update file attribute" in {
