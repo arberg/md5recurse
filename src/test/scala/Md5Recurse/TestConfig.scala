@@ -11,7 +11,7 @@ import scalax.file.Path
 //import scalax.file.ImplicitConversions.defaultPath2jfile
 
 
-trait TestConfig extends FlatSpec with TestHelper {
+trait TestConfig extends TestSuite with TestHelper {
 
   val paramOnlyPrintModified = "--only-print-modified"
   val paramDisableFileAttributes = "--disable-file-attributes"

@@ -2,14 +2,13 @@ package Md5Recurse
 
 import java.io.File
 
-import org.scalatest.{FlatSpec, Matchers}
-
+import org.scalatest.{Matchers, TestSuite}
 import scalax.file.Path
 
 /**
   * Created by Alex on 26-12-2016.
   */
-trait TestHelper extends FlatSpec with Matchers {
+trait TestHelper extends TestSuite with Matchers {
 
   def replaceMd5LineInFile(md5DataFile: Path, filename: String, newMd5: String) {
     val linesUpdated = replaceMd5Line(md5DataFile.lines().toList, "simple.log", "a" * 32)
