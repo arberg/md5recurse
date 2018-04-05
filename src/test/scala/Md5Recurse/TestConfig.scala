@@ -15,6 +15,9 @@ trait TestConfig extends TestSuite with TestHelper {
 
   val paramOnlyPrintModified = "--only-print-modified"
   val paramDisableFileAttributes = "--disable-file-attributes"
+  val paramCheck = "--check"
+  val paramCheckAll = "--check-all"
+  val paramCheckOnly = "--only-check"
   val paramGlobalDir = "--globaldir"
   val paramGlobalDirShort = "-g"
   val paramGlobalDirRelative = "--globaldir-relative"
@@ -22,12 +25,13 @@ trait TestConfig extends TestSuite with TestHelper {
   val MD5DATA_EXT = ".md5data"
   val MD5SUM_EXT = ".md5"
 
+  val GLOBAL_BASE_FILENAME = "_global.md5data"
   val TEST_EXECUTION_DIR = "build/testExecution"
   val TEST_EXECUTION_DIR_PATH = Path.fromString(TEST_EXECUTION_DIR)
   val TEST_EXECUTION_DIR_FILE = new File(TEST_EXECUTION_DIR)
   val TEST_EXECUTION_GLOBAL_DIR: String = TEST_EXECUTION_DIR + "/globalDir"
   val TEST_EXECUTION_GLOBAL_DIR_PATH = Path.fromString(TEST_EXECUTION_DIR + "/globalDir")
-  val TEST_EXECUTION_GLOBAL_FILE: Path = TEST_EXECUTION_GLOBAL_DIR_PATH / "_global.md5data"
+  val TEST_EXECUTION_GLOBAL_FILE: Path = TEST_EXECUTION_GLOBAL_DIR_PATH / GLOBAL_BASE_FILENAME
   val SRC_TEST_RES_FILES_DIR = "src/test/res/files"
   private val SRC_TEST_RES_DIR_PATH = Path.fromString(SRC_TEST_RES_FILES_DIR)
 
