@@ -1,0 +1,9 @@
+#!/usr/bin/bash
+
+#PATH="$PATH:/boot/bin" /boot/bin/md5recurse_unraid_generate_local
+
+echo "$(date "+%Y.%m.%d %H:%M") Starting checking all md5 for bitrot" >> /mnt/user/md5/md5recurse_unraid.log
+PATH="$PATH:/boot/bin" /boot/bin/md5recurse_unraid --check
+echo "$(date "+%Y.%m.%d %H:%M") Finished checking all md5 for bitrot" >> /mnt/user/md5/md5recurse_unraid.log
+PATH="$PATH:/boot/bin" /boot/bin/md5recurse_unraid
+
