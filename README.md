@@ -21,6 +21,11 @@ UnRaid Scripts
 Additional scripts have been included for generating MD5 files on the UnRaid operating system. In UnRaid each file is located on one specific disk (named cache, disk1-diskN). UnRaid has a virtual folder called 'user' which contains the union of all files on the disks. 
 The script scans all disks separately and creates a global-md5data file for each disk. It also scans the virtual user folder and generates a global md5data file.
 
+UnRaid Forum Thread
+==========
+
+[unRAID forum Thread](https://lime-technology.com/forums/topic/70736-md5recurse-hash-program-built-for-unraid/)
+
 ### Usages
 * Should a disk fail the global-disk files can be used to verify a possible restore of the disk. 
 * Should a subfolder in the common user-folder be lost and later restored, then the global user-md5data can be used to verify the content of the restored folder.
