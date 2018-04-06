@@ -14,6 +14,10 @@ import scala.collection.immutable.Seq
 import scala.collection.{mutable, _}
 
 // We keep an execution log so our tests can monitor what the program did, when it is difficult to determine by seeing output
+object Version {
+    var version = "1.0.3"
+}
+
 object ExecutionLog {
     var current = new ExecutionLog
 }
@@ -117,7 +121,7 @@ class Md5OptionParser extends scopt.OptionParser[Config]("Md5Recurse") {
 
     def pruneAndWrapText(text: String) = text.replaceAll("\n", "").replaceAll("[ ]+", " ").wordWrap(TEXT_WRAP, TEXT_INDENT)
 
-    head("Md5Recurse", "version 1.0.3")
+    head("Md5Recurse", "version " + Version.version)
 
     note(("Md5Recurse generates MD5 hashes for files recursively within directories or on single files. Data is written to file attributes by default, " +
         "and can also be written with local files in each directory or to a single global file. It is fastest to access a single file, so if enabled md5data will be read from " +
