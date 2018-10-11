@@ -331,6 +331,7 @@ object Md5Recurse {
                 }
 
                 // Disabled check content changed, because now we instead test timestamps of files, and the timestamp check is not so valuable if we don't update timestamp of equal files. Md5Sum files can be equal even if lastModified of a file changed.
+                // 2018.10 I don't remember what I mean by 'test timestamps of files'
                 //        if (!path.exists/* || !equals(outLines, path.lines().toList)*/) {
                 if (Config.it.logMd5ScansAndSkipped) Console.out.println("Updating local file " + file)
                 try {
@@ -362,6 +363,8 @@ object Md5Recurse {
             val dataFile: File = new File(dir + "/" + md5FileName)
             if (isFileUpdated || dataFile.lastModified() < greatestLastModifiedTimestampInDir || Config.it.alwaysUpdateLocal || l.isEmpty) {
                 writeMd5DataCommon(dataFile, l, proc, encoding, writeBOM)
+//            } else {
+//                if (Config.it.logMd5ScansAndSkipped) Console.out.println("Skipping local file " + dataFile)
             }
         }
     }
