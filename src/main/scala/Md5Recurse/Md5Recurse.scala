@@ -15,7 +15,7 @@ import scala.collection.{mutable, _}
 
 // We keep an execution log so our tests can monitor what the program did, when it is difficult to determine by seeing output
 object Version {
-    var version = "1.0.3"
+    var version = "1.0.4"
 }
 
 object ExecutionLog {
@@ -469,6 +469,7 @@ object Md5Recurse {
                 isFileUpdated = true
                 val fInfoMd5Option = Md5FileInfo.readFileGenerateMd5Sum(f, config.useFileAttributes)
                 if (fInfoMd5Option.isEmpty) {
+                    if (config.logMd5Scans) Console.out.println(debugInfo + " " + fInfoMd5Option.get + " Error Reading file")
                     failureMsgs += "Error reading file " + f
                 } else {
                     if (config.logMd5Scans) Console.out.println(debugInfo + " " + fInfoMd5Option.get)
@@ -670,7 +671,7 @@ object Md5Recurse {
                     val (md5s, failureMd5s, failureMessages, isFileUpdated, greatestLastModifiedTimestampInDir) = verifyAndGenerateMd5ForDirectoryNonRecursive(dir, fileSet.removeDir(dir))
                     postScan(dir, md5s, failureMd5s, failureMessages, isFileUpdated, greatestLastModifiedTimestampInDir)
                     if (recurse) {
-                        for (f <- filesInDir.sortBy(_.getName) if f.isDirectory) { // Sort traversal to get global files written same order and thus makes text-comparison possible
+                        for (f <- filesInDir.sortBy(_.getName) if f.isDirectory if !FileUtil.isSymLink(f)) { // Sort traversal to get global files written same order and thus makes text-comparison possible
                             execVerifyByRecursion(recurse = true, f, fileSet, postScan)
                         }
                     }
