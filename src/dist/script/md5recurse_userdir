@@ -11,4 +11,8 @@ if [ "$1" == "" ] ; then
 	exit 1
 fi 
 
-/boot/app/md5recurse/bin/md5recurse -e UTF-8-BOM --local -p user -g /mnt/user/md5 "$@"
+# With print flags search for HeapSize
+#JAVA_OPTS="-XX:+PrintFlagsFinal -Xms4192m -Xmx7g -Xss128m"
+#JAVA_OPTS="-Xmx2g"
+#JAVA_OPTS="-Xmx14384M -agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=5005"
+JAVA_OPTS=${JAVA_OPTS} /boot/app/md5recurse/bin/md5recurse -e UTF-8-BOM --local -p user -g /mnt/user/md5 "$@"
