@@ -2,10 +2,17 @@
 
 # Prefer to source java location from cfg rather than take from environment, because crontab does not have .bashrc environment
 source $(dirname "$0")/md5recurse_unraid.cfg
+ERROR_LOGNAME="${LOGNAME}_ERROR.log"
+[ -f ${ERROR_LOGNAME} ] && rm ${ERROR_LOGNAME}
 
 log() {
 	echo "$1"
 	[ "$LOG" != "" ] && echo "$(date "+%Y.%m.%d %H:%M") $1" >> ${LOG}
+}
+
+logWithDeleteLastLine() {
+	echo "$1"
+	[ "$LOG" != "" ] && printf "$(head -n -1 ${LOG})\n$(date "+%Y.%m.%d %H:%M") $1" >> ${LOG}
 }
 
 
@@ -79,7 +86,7 @@ cleanLocalDirMd5FilesWhichHaveBeenMovedBetweenDisks() {
 execMd5recurse() {
 	# Note that the md5recurse script sets the memory option, so we probably cannot overwrite it here
 	# When executed via crontab we need to set JAVA_HOME directly on this prompt
-	JAVA_HOME=$JAVA_HOME ${MD5RECURSE_EXEC} "$@" 2>> ${LOGNAME}_ERROR.log
+	JAVA_HOME=$JAVA_HOME ${MD5RECURSE_EXEC} "$@" 2>> ${ERROR_LOGNAME}
 }
 
 exitWithEcho() { 
@@ -120,6 +127,10 @@ pidCheck() {
   fi
 }
 
+deleteIfEmpty() {
+	 [ ! -s $1 ] && rm $1
+}
+
 
 trap killGroup INT
 
@@ -155,7 +166,10 @@ STARTTIME=$(date +%s)
 for SCAN_DIR in /mnt/disk* /mnt/cache; do
 	# For debugging: Remove & to make it easier to break and kill for-loop process
 	DISK=$(basename $SCAN_DIR)
-	execMd5recurse -p "${DISK}" $OPTIONS ${SCAN_DIR} | tee ${LOGNAME}_${DISK}.log &
+	{ 
+		execMd5recurse -p "${DISK}" $OPTIONS ${SCAN_DIR} | tee ${LOGNAME}_${DISK}.log
+		deleteIfEmpty ${LOGNAME}_${DISK}.log 
+	} &
 
 	# It seems silly to wait for free processor as the disk IO is probably many times slower than MD5 computation
 	# waitForFreeProcessor
@@ -179,7 +193,8 @@ fi
 
 # If we have local files enabled, also scan /mnt/user to we update the local md5 files
 if [ "$ENABLE_LOCAL_MD5_FILES" == "1" ] ; then
-	execMd5recurse -p user $OPTIONS /mnt/user | tee ${LOGNAME}_user.log 
+	execMd5recurse -p user $OPTIONS /mnt/user | tee ${LOGNAME}_user.log
+	deleteIfEmpty ${LOGNAME}_user.log
 	#echo "Clean local md5-files"
 	cleanLocalDirMd5FilesWhichHaveBeenMovedBetweenDisks
 fi
@@ -239,8 +254,9 @@ if [ "$ENABLE_GLOBAL_MD5_FILES" == "1" ] ; then
 	popd > /dev/null
 fi
 
+deleteIfEmpty ${ERROR_LOGNAME}
 ENDTIME=$(date +%s)
 RUNTIME=$(($ENDTIME - $STARTTIME))
+head -n -1
 log "$(printf "Finished: Executed with options '${OPTIONS}' - Execution time %02d:%02d:%02d (${RUNTIME}s)" $(($RUNTIME/3600)) $(($RUNTIME%3600/60)) $(($RUNTIME%60)))"
-
 rm $PID
