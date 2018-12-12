@@ -257,6 +257,5 @@ fi
 deleteIfEmpty ${ERROR_LOGNAME}
 ENDTIME=$(date +%s)
 RUNTIME=$(($ENDTIME - $STARTTIME))
-head -n -1
 log "$(printf "Finished: Executed with options '${OPTIONS}' - Execution time %02d:%02d:%02d (${RUNTIME}s)" $(($RUNTIME/3600)) $(($RUNTIME%3600/60)) $(($RUNTIME%60)))"
 rm $PID

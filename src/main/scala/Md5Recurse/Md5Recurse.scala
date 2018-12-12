@@ -15,7 +15,7 @@ import scala.collection.{mutable, _}
 
 // We keep an execution log so our tests can monitor what the program did, when it is difficult to determine by seeing output
 object Version {
-    var version = "1.0.4"
+    var version = "1.0.5"
 }
 
 object ExecutionLog {
@@ -472,7 +472,7 @@ object Md5Recurse {
                 isFileUpdated = true
                 val fInfoMd5Option = Md5FileInfo.readFileGenerateMd5Sum(f, config.useFileAttributes)
                 if (fInfoMd5Option.isEmpty) {
-                    if (config.logMd5Scans) Console.out.println(debugInfo + " " + fInfoMd5Option.get + " Error Reading file")
+                    if (config.logMd5Scans) Console.out.println(debugInfo + " " + fInfoMd5Option + " Error Reading file")
                     failureMsgs += "Error reading file " + f
                 } else {
                     if (config.logMd5Scans) Console.out.println(debugInfo + " " + fInfoMd5Option.get)
