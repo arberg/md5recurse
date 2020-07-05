@@ -1,0 +1,31 @@
+#!/bin/bash
+
+if [ "$1" == "" ] ; then
+	echo "Examples:"
+	echo "  Scan disk1 "
+	echo "    sudo md5recurse --globaldir /mnt/user/md5 -p disk1 /mnt/disk1"
+	echo "  Check (and scan) disk1 - for instance before/after restoring disk from parity"
+	echo "    sudo md5recurse --globaldir /mnt/user/md5 --check -p disk1 /mnt/disk1"
+	echo "  After disk failure: Find missing files (disable local and file attributes, enable global)"
+	echo "    sudo md5recurse --globaldir /mnt/user/md5 --disable-file-attributes --print-missing -p disk1 /mnt/disk1"
+	echo "  After disk failure: Check MD5  (disable local and file attributes, enable global)"
+	echo "    sudo md5recurse --globaldir /mnt/user/md5 --disable-file-attributes --check -p disk1 /mnt/disk1"
+	echo "  Scan current dir and place md5data in current folder "
+	echo "    md5recurse --globaldir . --local -p user ."
+	echo "  Check md5's of current dir "
+	echo "    md5recurse --local --check -p user ."
+	echo "  Print md5's to stdout similar to md5sum"
+	echo "    md5recurse --print ."	
+	echo
+	exit 1
+fi
+
+source $(dirname "$0")/md5recurse_unraid.cfg 
+if [ ! -f "$MD5RECURSE_EXEC" ] ; then
+	echo "ERROR missing md5recurse install, please check md5recurse_unraid.cfg: MD5RECURSE_EXEC=$MD5RECURSE_EXEC"
+	exit 1
+fi
+
+#JAVA_OPTS=-Xmx384M
+JAVA_OPTS=${JAVA_OPTS} $MD5RECURSE_EXEC ${EXTRA_OPTIONS} "$@"
+

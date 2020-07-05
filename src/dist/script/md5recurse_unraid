@@ -15,8 +15,7 @@ logWithDeleteLastLine() {
 	[ "$LOG" != "" ] && printf "$(head -n -1 ${LOG})\n$(date "+%Y.%m.%d %H:%M") $1" >> ${LOG}
 }
 
-
-if [ ! -f "$MD5RECURSE_EXEC" ] ; then
+if [[ ! -x "$(which md5recurse)" ]] ; then
 	log "ERROR missing md5recurse install, please check md5recurse_unraid.cfg: MD5RECURSE_EXEC=$MD5RECURSE_EXEC"
 	exit 1
 fi
@@ -74,7 +73,7 @@ cleanLocalDirMd5FilesWhichHaveBeenMovedBetweenDisks() {
 				# For debugging: Remove & to make it easier to break and kill for-loop process
 				WRONGDISK=$(basename $SCAN_DIR2)
 				#echo "${SCAN_DIR}: Cleaning .${WRONGDISK}.md5 and .${WRONGDISK}.md5data"
-				find  ${SCAN_DIR} \( -name ".${WRONGDISK}.md5data" -o -name ".${WRONGDISK}.md5" \) -delete
+				find  ${SCAN_DIR} -name ".${WRONGDISK}.md5" -delete
 				#echo "${SCAN_DIR}: Finished .${WRONGDISK}.md5 and .${WRONGDISK}.md5data"
 			fi
 		done &
@@ -142,7 +141,7 @@ then
   echo "WARNING: Not running as root (probably cannot write pid file)"
   # echo "ERROR: Run as root"
   # exit 1
-fi  
+fi
 
 ####################################################################################
 ########### Execute md5recurse simultaniously on each disk, then on user ###########
@@ -166,17 +165,18 @@ STARTTIME=$(date +%s)
 for SCAN_DIR in /mnt/disk* /mnt/cache; do
 	# For debugging: Remove & to make it easier to break and kill for-loop process
 	DISK=$(basename $SCAN_DIR)
-	{ 
+	{
 		execMd5recurse -p "${DISK}" $OPTIONS ${SCAN_DIR} | tee ${LOGNAME}_${DISK}.log
-		deleteIfEmpty ${LOGNAME}_${DISK}.log 
+		deleteIfEmpty ${LOGNAME}_${DISK}.log
+		log "Finished: ${DISK} with options='${OPTIONS}'"
 	} &
 
 	# It seems silly to wait for free processor as the disk IO is probably many times slower than MD5 computation
 	# waitForFreeProcessor
 done
-wait 
+wait
 
-# Concatenate global files into user_global.md5data 
+# Concatenate global files into user_global.md5data
 if [ "$ENABLE_GLOBAL_MD5_FILES" == "1" ] ; then
 	TMP_MD5_FILE=${MD5_GLOBAL_DIR}/user_global_temp.md5data
 	[ -f $TMP_MD5_FILE ] && rm ${TMP_MD5_FILE}
@@ -185,7 +185,7 @@ if [ "$ENABLE_GLOBAL_MD5_FILES" == "1" ] ; then
 		globalFile="${MD5_GLOBAL_DIR}/${DISK}_global.md5data"
 		# For debugging: Remove & to make it easier to break and kill for-loop process
 		if [ -f  ] ; then
-			cat ${globalFile} | sed "s|^>/mnt/${DISK}/|>/mnt/user/|" >> ${TMP_MD5_FILE} 
+			cat ${globalFile} | sed "s|^>/mnt/${DISK}/|>/mnt/user/|" >> ${TMP_MD5_FILE}
 		fi 
 	done
 	mv ${TMP_MD5_FILE} ${MD5_GLOBAL_DIR}/user_global.md5data
@@ -195,9 +195,9 @@ fi
 if [ "$ENABLE_LOCAL_MD5_FILES" == "1" ] ; then
 	execMd5recurse -p user $OPTIONS /mnt/user | tee ${LOGNAME}_user.log
 	deleteIfEmpty ${LOGNAME}_user.log
-	#echo "Clean local md5-files"
-	cleanLocalDirMd5FilesWhichHaveBeenMovedBetweenDisks
 fi
+#echo "Clean local md5-files"
+cleanLocalDirMd5FilesWhichHaveBeenMovedBetweenDisks
 
 
 ##########################################################################
