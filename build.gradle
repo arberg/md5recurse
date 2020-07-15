@@ -9,8 +9,10 @@ buildscript {
         jcenter()
     }
     dependencies {
-        // http://jcenter.bintray.com/com/github/jengelman/gradle/plugins/shadow/
-        classpath 'com.github.jengelman.gradle.plugins:shadow:1.2.4'
+        // jengelman shadow-lib must match gradle version to some degree, so if upgrading gradle, upgrade this as well
+        // https://github.com/johnrengelman/shadow
+        // https://jcenter.bintray.com/com/github/jengelman/gradle/plugins/shadow/
+        classpath 'com.github.jengelman.gradle.plugins:shadow:6.0.0'
     }
 }
 repositories {

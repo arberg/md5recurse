@@ -15,7 +15,8 @@ import scala.collection.{mutable, _}
 
 // We keep an execution log so our tests can monitor what the program did, when it is difficult to determine by seeing output
 object Version {
-    var version = "1.0.5"
+    // 1.0.6: Log changes: --only-print-missing -V2 also prints files with updated timestamp not read. Updated to gradle 6
+    var version = "1.0.6"
 }
 
 object ExecutionLog {
@@ -245,7 +246,7 @@ class Md5OptionParser extends scopt.OptionParser[Config]("Md5Recurse") {
         if (!c.optionGlobalNonRelative || !c.optionGlobalRelative) success else failure("Use only one of --globaldir (-g) and --globaldir-relative (-G)")
     }
     checkConfig { c =>
-        // Not sure we need this, but should definitiely prevent updating local files
+        // Not sure we need this, but should definitely prevent updating local files
         if (!c.optionOnlyPrintModified || !c.optionLocal) success else failure("Use of --only-print-modified prevents --local")
     }
     checkConfig { c =>
@@ -548,18 +549,26 @@ object Md5Recurse {
                             md5s += fInfoMd5
                         }
                     } else {
-                        // Old non-verified file
+                        // Old non-verified file (and we are not rereading all files)
                         if (config.logMd5ScansAndSkipped) Console.out.println("Hash exists with matching file timestamp, file read skipped: " + f)
                         if (config.useFileAttributes && config.alwaysUpdateLocal) Md5FileInfo.updateMd5FileAttribute(f, recordedMd5Info)
                         md5s += recordedMd5Info // timestamp updated on windows NTFS if fileAttributes written
                     }
-                } else if (Config.it.doGenerateMd5ForNewAndExistingNewerFiles) {
+                } else {
                     // File with modified lastModified
-                    generateMd5(true)
+                    if (Config.it.doGenerateMd5ForNewAndExistingNewerFiles) {
+                        generateMd5(true)
+                    } else {
+                        if (config.logMd5ScansAndSkipped) Console.out.println("Updated file-timestamp, read skipped due to disabled scan: " + f)
+                    }
                 }
             } else {
                 // New file
-                if (config.doGenerateMd5ForNewAndExistingNewerFiles) generateMd5(false)
+                if (config.doGenerateMd5ForNewAndExistingNewerFiles) {
+                    generateMd5(false)
+                } else {
+                    if (config.logMd5ScansAndSkipped) Console.out.println("New file, read skipped due to disabled scan: " + f)
+                }
             }
         }
         (md5s.toList, failures.toList, failureMsgs.toList, isFileUpdated, greatestLastModifiedTimestampInDir)

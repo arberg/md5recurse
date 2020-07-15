@@ -5,10 +5,18 @@
 .\gradlew build
 
 function install([String]$location) {
-    "Installing to $location" | out-host
-    Expand-Archive d:\Development\GitHub\md5recurse\build\distributions\md5recurse.zip  -DestinationPath $location -force
+    if (Test-Path $location) {
+        "Installing to $location" | out-host
+        # md5recurse-shadow.zip also works, it has all libs in one jar, but the zip contains dir md5recurse-shadow
+        Expand-Archive d:\Development\GitHub\md5recurse\build\distributions\md5recurse.zip $location -force
+    } else {
+        Write-Host -ForegroundColor Magenta "Target location does not exists: $location"
+    }
 }
 install d:\Development\BnrTools
-install \\towerAlex\flash\app
+install d:\Development\BnrSync\Install
+install \\towerAlex\home\alex\app
 install c:\Tools
 install d:\vagrant\win10pro-en-1.2.0\Tools
+# Encrypted disk, its prepare task auto-copies it from tower
+# install \\nanite\t\bin
