@@ -2,6 +2,8 @@
 # $env:JAVA_HOME="C:\Program Files\OpenJDK\jdk-11.0.1"
 # "Using java: $env:JAVA_HOME" | Out-Host
 
+# Build with java8, so it works on java8 and newer. Otherwise I need to update java on Tower.
+Setup-Environment-Java8-localSession.ps1
 .\gradlew build
 
 function install([String]$location) {

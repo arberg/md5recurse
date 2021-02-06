@@ -16,7 +16,8 @@ import scala.collection.{mutable, _}
 // We keep an execution log so our tests can monitor what the program did, when it is difficult to determine by seeing output
 object Version {
     // 1.0.6: Log changes: --only-print-missing -V2 also prints files with updated timestamp not read. Updated to gradle 6
-    var version = "1.0.6"
+    // 1.0.7: Always check if local md5 files should be updated, and only update them if they are changed. --check-all now include timestamp in diffs. Added '-h' as help option.
+    var version = "1.0.7"
 }
 
 object ExecutionLog {
@@ -78,7 +79,7 @@ case class Config(
                      optionGlobalNonRelative: Boolean = false,
                      optionLocal: Boolean = false,
                      optionOnlyPrintModified: Boolean = false,
-                     alwaysUpdateLocal: Boolean = false,
+                     alwaysUpdateLocal: Boolean = true, // now unused as of 1.0.7
                      silenceWarnings: Boolean = false,
                      printMd5: Boolean = false,
                      useFileAttributes: Boolean = true) {
@@ -146,7 +147,7 @@ class Md5OptionParser extends scopt.OptionParser[Config]("Md5Recurse") {
         c.copy(doVerify = true)
     } text
         pruneAndWrapText(
-            """verifies MD5 of existing unmodified files, ie. files with same modification timestamp as the timestamp of the previous hash. Prints
+            """verifies MD5 of all files with unaltered file-modified timestamp since scan. Any change found is written to all enabled md5-data storages. Prints
             warning if file content changed, and logs entry with original hash to log-file. As with a regular scan, all new and modified files are also scanned, and
             updated hash values are written to data storage.""")
 
@@ -183,10 +184,6 @@ class Md5OptionParser extends scopt.OptionParser[Config]("Md5Recurse") {
     opt[Unit]("local") action { (_, c) =>
         c.copy(readMd5DataPrDirectory = true, writeMd5DataPrDirectory = true, optionLocal = true)
     } text pruneAndWrapText("Enable reading and writing .md5 files in each directory")
-
-    opt[Unit]("local-update-all") action { (_, c) =>
-        c.copy(alwaysUpdateLocal = true)
-    } text pruneAndWrapText("Always updates local files and attributes (when enabled) even if no changes found in files in directory")
 
     opt[String]('p', "prefix") valueName "<local-file-prefix>" action { (x, c) =>
         c.copy(md5FilePrefix = x, logPostFix = s" ($x)")
@@ -239,7 +236,14 @@ class Md5OptionParser extends scopt.OptionParser[Config]("Md5Recurse") {
         c.copy(quiet = true)
     } text pruneAndWrapText("don't print missing source dirs")
 
-    help("help") text "prints this help"
+    //    help("help") text "prints this help"
+    opt[Unit]('h', "help") action { (_, c) =>
+        // Copied from help(). This adds 'h' as option
+        showUsage()
+        terminate(Right(()))
+        c
+    } text "prints this help"
+
     version("version") text "print version"
 
     checkConfig { c =>
@@ -314,15 +318,25 @@ object Md5Recurse {
     // read file and generate md5sum
     def md5Sum(path: String): Option[Md5SumInfo] = md5Sum("", path)
 
-    def writeMd5DataCommon[A](file: File, outObjects: List[A], proc: A => String, encoding: String, writeBOM: Boolean) {
+    /**
+     *
+     * @param file
+     * @param outObjects
+     * @param printer Converts outObject to String
+     * @param encoding
+     * @param writeBOM
+     * @tparam A
+     */
+    def writeMd5DataCommon[A](file: File, outObjects: List[A], printer: A => String, encoding: String, writeBOM: Boolean) {
         implicit val codec: Codec = Codec(encoding) // value to be passed to Path on read and write
         try {
             if (outObjects.nonEmpty) {
-                // Map tho outObjects to outlines. Also append to first line the UTF-8 BOM character if enabled.
-                val outLines: Seq[String] = outObjects.zipWithIndex.map { case (o, i: Int) => (if (i == 0 && writeBOM) "\uFEFF" else "") + proc(o) }
+                // Map outObjects (Md5Info) to outlines. Also append to first line the UTF-8 BOM character if enabled.
+                val outLines: Seq[String] = outObjects
+                    .zipWithIndex
+                    .map { case (o, i: Int) => (if (i == 0 && writeBOM) "\uFEFF" else "") + printer(o) }
+                    .flatMap { _.split("\n") } // Split each line into separate entry in list, so we can diff with lines in .md5 files
                 val path = Path.fromString(file.getPath)
-
-                // Don't sort the read lines, because if user manually edited file it does not hurt rewriting file. If user didn't edit file, it will have identical sorting
                 def equals[T](list1: T, list2: T) = {
                     val equals = list1 == list2
                     if (equals) {
@@ -331,25 +345,25 @@ object Md5Recurse {
                     equals
                 }
 
-                // Disabled check content changed, because now we instead test timestamps of files, and the timestamp check is not so valuable if we don't update timestamp of equal files. Md5Sum files can be equal even if lastModified of a file changed.
-                // 2018.10 I don't remember what I mean by 'test timestamps of files'
-                //        if (!path.exists/* || !equals(outLines, path.lines().toList)*/) {
-                if (Config.it.logMd5ScansAndSkipped) Console.out.println("Updating local file " + file)
-                try {
-                    path.writeStrings(strings = outLines, separator = "\n")
-                } catch {
-                    case exception: scalax.io.ScalaIOException =>
-                        exception.getCause() match {
-                            case _: java.nio.charset.UnmappableCharacterException =>
-                                Console.out.println(s"WARNING: Character could not be written as with encoding $encoding, file will be written using UTF-8: $file")
-                                path.writeStrings(strings = outLines, separator = "\n")(Codec.UTF8)
-                            case _ => throw exception
-                        }
-                    case e: java.io.IOException =>
-                        Console.err.println("Unable to write file " + path.path + ": " + e.getMessage)
-                        Console.err.flush()
-                }
-                //        } // end equal
+                // Only update local .md5 files if they have changed. If a file in the directory has identical md5-sum, but modified timestamp, then this .md5 file will get updated,
+                // because the timestamp is in a comment in the .md5 file
+                if (!path.exists || !equals(outLines, path.lines().toList)) {
+                    if (Config.it.logMd5ScansAndSkipped) Console.out.println("Updating local file " + file)
+                    try {
+                        path.writeStrings(strings = outLines, separator = "\n")
+                    } catch {
+                        case exception: scalax.io.ScalaIOException =>
+                            exception.getCause() match {
+                                case _: java.nio.charset.UnmappableCharacterException =>
+                                    Console.out.println(s"WARNING: Character could not be written as with encoding $encoding, file will be written using UTF-8: $file")
+                                    path.writeStrings(strings = outLines, separator = "\n")(Codec.UTF8)
+                                case _ => throw exception
+                            }
+                        case e: java.io.IOException =>
+                            Console.err.println("Unable to write file " + path.path + ": " + e.getMessage)
+                            Console.err.flush()
+                    }
+                } // end equal
             } else if (file.exists) {
                 if (!file.delete()) Console.out.println("Failed to delete " + file)
             }
@@ -359,11 +373,12 @@ object Md5Recurse {
         }
     }
 
-    def writeMd5DataCommon(configEnabled: Boolean, md5FileName: String, proc: Md5FileInfo => String, encoding: String, writeBOM: Boolean, dir: File, l: List[Md5FileInfo], isFileUpdated: Boolean, greatestLastModifiedTimestampInDir: Long) {
+    def writeMd5DataCommon(configEnabled: Boolean, md5FileName: String, printer: Md5FileInfo => String, encoding: String, writeBOM: Boolean, dir: File, l: List[Md5FileInfo],
+                           isFileUpdated: Boolean, greatestLastModifiedTimestampInDir: Long) {
         if (configEnabled) {
             val dataFile: File = new File(dir + "/" + md5FileName)
             if (isFileUpdated || dataFile.lastModified() < greatestLastModifiedTimestampInDir || Config.it.alwaysUpdateLocal || l.isEmpty) {
-                writeMd5DataCommon(dataFile, l, proc, encoding, writeBOM)
+                writeMd5DataCommon(dataFile, l, printer, encoding, writeBOM)
 //            } else {
 //                if (Config.it.logMd5ScansAndSkipped) Console.out.println("Skipping local file " + dataFile)
             }
@@ -537,7 +552,8 @@ object Md5Recurse {
                             val fInfoMd5 = fInfoMd5Option.get
                             if (fInfoMd5.md5String != recordedMd5Info.md5String) {
                                 val msgPrefix = if (isFileTimestampIdentical) "" else " but with modified timestamp"
-                                val msg = s"Failed verification$msgPrefix: original=" + recordedMd5Info.md5String + " current=" + fInfoMd5.md5String + " " + fInfoMd5.filePath
+                                val msg = s"Failed verification$msgPrefix: original=${recordedMd5Info.md5String}(${recordedMd5Info.getFileInfo.getLastModifiedString()}) " +
+                                    s"current=${fInfoMd5.md5String}(${fInfoMd5.getFileInfo.getLastModifiedString()}) ${fInfoMd5.filePath}"
                                 if (!Config.it.quiet) {
                                     Console.err.print(msg)
                                 }

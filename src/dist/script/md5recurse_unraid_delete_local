@@ -1,4 +1,7 @@
 #!/bin/bash
+
+MD5RECURSE_COMMAND="$ALEXAPP/md5recurse/bin/md5recurse"
+
 # trap ctrl-c and call ctrl_c()
 function killGroup() {
 	# xargs will trim leading space
@@ -6,7 +9,7 @@ function killGroup() {
   echo
   echo "Killing process group '$PSGROUP' (as $USER), please wait after sending first ^C"
   kill -TERM -${PSGROUP}
-}  
+}
 trap killGroup INT
 
 
@@ -15,14 +18,14 @@ then
   echo "WARNING: Not running as root (probably cannot write pid file)"
   # echo "ERROR: Run as root"
   # exit 1
-fi  
+fi
 
 
 for SCAN_DIR in /mnt/disk* ; do
 	# For debugging: Remove & to make it easier to break and kill for-loop process
 	DISK=$(basename $SCAN_DIR)
-	/boot/app/md5recurse/bin/md5recurse -q -p "${DISK}" --deletemd5 ${SCAN_DIR} &
+	$MD5RECURSE_COMMAND -q -p "${DISK}" --deletemd5 ${SCAN_DIR} &
 done
 
-/boot/app/md5recurse/bin/md5recurse -q -p user --deletemd5 /mnt/user &
+$MD5RECURSE_COMMAND -q -p user --deletemd5 /mnt/user &
 wait

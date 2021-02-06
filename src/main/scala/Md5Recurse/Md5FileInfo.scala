@@ -188,7 +188,7 @@ object Md5FileInfo {
         val attrView: UserDefinedFileAttributeView = FileUtil.attrView(file)
         val oldAttr = FileUtil.getAttr(attrView, Md5FileInfo.ATTR_MD5RECURSE)
 
-        // only update changes
+        // Sets the fileAttribute, if it is missing or changed since last value
         def doUpdate(inputMd5FileInfo: Md5FileInfo) {
             val newDataLine = inputMd5FileInfo.exportAttrLine
             if (oldAttr.isEmpty || oldAttr.get != newDataLine) {
@@ -201,9 +201,10 @@ object Md5FileInfo {
         // Lock the file so others cannot write file, while we read it to generate MD5 and then write fileAttribute
         // We don't need the lock on linux, unless the filesystem is mounted NTFS I think. Its probably filesystem dependent not OS dependent.
         val updateAttributeFunction = () => {
-            val lastModifiedBeforeAttributeUpdateWasEqual = md5FileInfo.lastModified == file.lastModified()
+            val doPreserveLastModified = md5FileInfo.lastModified == file.lastModified() // Only preserve timestamp, if others have not already updated file timestamp before we updated file
             doUpdate(md5FileInfo)
-            if (lastModifiedBeforeAttributeUpdateWasEqual && file.lastModified != md5FileInfo.lastModified) {
+            // Restore LastModified timestamp of the file, after updating the fileAttribute
+            if (doPreserveLastModified && file.lastModified != md5FileInfo.lastModified) {
                 file.setLastModified(md5FileInfo.lastModified)
                 if (file.lastModified() != md5FileInfo.lastModified) {
                     println("WARNING: Failed to set fileAttribute with same lastModified as file timestamp")

@@ -1,0 +1,45 @@
+#!/bin/bash
+# trap ctrl-c and call ctrl_c()
+function killGroup() {
+	# xargs will trim leading space
+	PSGROUP=$(ps -o pgid= $$ | xargs)
+  echo
+  echo "Killing process group '$PSGROUP' (as $USER), please wait after sending first ^C"
+  kill -TERM -${PSGROUP}
+}
+trap killGroup INT
+
+
+if [ "$USER" != "root" ]
+then
+  echo "WARNING: Not running as root"
+  # echo "ERROR: Run as root"
+  # exit 1
+fi
+
+check() {
+  SHARE=$1
+  echo "$(date "+%Y.%m.%d %H:%M") Starting checking all md5 for bitrot on /mnt/$SHARE" | tee -a /mnt/user/md5/md5recurse_unraid.log
+  md5recurse --globaldir /mnt/user/md5 --check --local-update-all -p $SHARE /mnt/$SHARE
+  echo "$(date "+%Y.%m.%d %H:%M") Finished checking all md5 for bitrot on /mnt/$SHARE" | tee -a /mnt/user/md5/md5recurse_unraid.log
+}
+
+case "$1" in
+  all)
+    echo "Hej"
+    echo "$(date "+%Y.%m.%d %H:%M") Starting checking all md5 for bitrot" >> /mnt/user/md5/md5recurse_unraid.log
+    md5recurse_unraid --check --local-update-all
+    echo "$(date "+%Y.%m.%d %H:%M") Finished checking all md5 for bitrot" >> /mnt/user/md5/md5recurse_unraid.log
+  ;;
+  cache)
+    check $1 ;;
+  disk1)
+    check $1 ;;
+  disk2)
+    check $1 ;;
+  disk3)
+    check $1 ;;
+  *)
+        echo "Usage: $0 {all|cache|disk1|disk2|disk3}"
+        exit 1
+esac

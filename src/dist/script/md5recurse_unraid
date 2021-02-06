@@ -6,95 +6,103 @@ ERROR_LOGNAME="${LOGNAME}_ERROR.log"
 [ -f ${ERROR_LOGNAME} ] && rm ${ERROR_LOGNAME}
 
 log() {
-	echo "$1"
-	[ "$LOG" != "" ] && echo "$(date "+%Y.%m.%d %H:%M") $1" >> ${LOG}
+    echo "$1"
+    [ "$LOG" != "" ] && echo "$(date "+%Y.%m.%d %H:%M") $1" >> ${LOG}
 }
 
 logWithDeleteLastLine() {
-	echo "$1"
-	[ "$LOG" != "" ] && printf "$(head -n -1 ${LOG})\n$(date "+%Y.%m.%d %H:%M") $1" >> ${LOG}
+    echo "$1"
+    [ "$LOG" != "" ] && printf "$(head -n -1 ${LOG})\n$(date "+%Y.%m.%d %H:%M") $1" >> ${LOG}
 }
 
-if [[ ! -x "$(which md5recurse)" ]] ; then
-	log "ERROR missing md5recurse install, please check md5recurse_unraid.cfg: MD5RECURSE_EXEC=$MD5RECURSE_EXEC"
-	exit 1
+# https://stackoverflow.com/questions/592620/how-can-i-check-if-a-program-exists-from-a-bash-script
+if ! command -v "md5recurse" &> /dev/null
+then
+    log "ERROR missing md5recurse install, please check md5recurse_unraid.cfg: MD5RECURSE_EXEC=$MD5RECURSE_EXEC"
+    exit 1
 fi
 if [ -z "$JAVA_HOME" ] ; then
-	log "ERROR missing JAVA_HOME, either set in java.cfg or as environment variable"
-	exit 1
+    log "ERROR missing JAVA_HOME, either set in java.cfg or as environment variable"
+    exit 1
 fi
 if [ ! -f "$JAVA_HOME/bin/java" ] ; then
-	log "Error: Cannot find Java at JAVA_HOME=$JAVA_HOME"
-	exit 1
+    log "Error: Cannot find Java at JAVA_HOME=$JAVA_HOME"
+    exit 1
 fi
 
 function waitForFreeProcessor {
-	#CORES="$(cat /proc/cpuinfo | egrep "core id|physical id" | tr -d "\n" | sed s/physical/\\nphysical/g | grep -v ^$ | sort | uniq | wc -l)"
-	CORE_THREADS="$(nproc)"
-	while (( $(jobs | wc -l) >= $((2*$CORE_THREADS)) ))
-	do
-		#echo $(jobs | wc -l)
-		sleep 1
-		#jobs > /dev/null
-	done
+    #CORES="$(cat /proc/cpuinfo | egrep "core id|physical id" | tr -d "\n" | sed s/physical/\\nphysical/g | grep -v ^$ | sort | uniq | wc -l)"
+    CORE_THREADS="$(nproc)"
+    while (( $(jobs | wc -l) >= $((2*$CORE_THREADS)) ))
+    do
+        #echo $(jobs | wc -l)
+        sleep 1
+        #jobs > /dev/null
+    done
 }
 
 function mkdir_perm() {
-	if [ ! -d $1 ]; then
-		parent=$(dirname "$1")
-		if [ ! -d ${parent} ]; then	
-			mkdir_perm ${parent}
-		fi
-		mkdir $1
-		chown nobody:users $1
-		chmod a+w $1
-	fi
+    if [ ! -d $1 ]; then
+        parent=$(dirname "$1")
+        if [ ! -d ${parent} ]; then
+            mkdir_perm ${parent}
+        fi
+        mkdir $1
+        chown nobody:users $1
+        chmod a+w $1
+    fi
 }
 
 # trap ctrl-c and call ctrl_c()
 function killGroup() {
-	# xargs will trim leading space
-	PSGROUP=$(ps -o pgid= $$ | xargs)
-	echo
-	echo "Killing process group '$PSGROUP' (as $USER), please wait after sending first ^C"
-	kill -TERM -${PSGROUP}
+    # xargs will trim leading space
+    PSGROUP=$(ps -o pgid= $$ | xargs)
+    echo
+    echo "Killing process group '$PSGROUP' (as $USER), please wait after sending first ^C"
+    kill -TERM -${PSGROUP}
 }
 
 cleanLocalDirMd5FilesWhichHaveBeenMovedBetweenDisks() {
-	# user may have moved files from one disk to another. So a .disk1.md5 file may be on disk2. Since we never run md5recurse on
-	# disk2 with prefix disk1, md5recurse cannot discover this. md5recurse does have a clean-local-files option, we could run with 
-	# each prefix for each disk, but instead we do the cleanup directly in bash
+    # user may have moved files from one disk to another. So a .disk1.md5 file may be on disk2. Since we never run md5recurse on
+    # disk2 with prefix disk1, md5recurse cannot discover this. md5recurse does have a clean-local-files option, we could run with 
+    # each prefix for each disk, but instead we do the cleanup directly in bash
 
-	# echo "Cleaning incorrectly placed md5data"
-	# Note Dirs with  a '.disable_md5' will be skipped
-	for SCAN_DIR in /mnt/disk* /mnt/cache; do
-		for SCAN_DIR2 in /mnt/disk* /mnt/cache; do
-			if [ "$SCAN_DIR" != "$SCAN_DIR2" ] ; then
-				# For debugging: Remove & to make it easier to break and kill for-loop process
-				WRONGDISK=$(basename $SCAN_DIR2)
-				#echo "${SCAN_DIR}: Cleaning .${WRONGDISK}.md5 and .${WRONGDISK}.md5data"
-				find  ${SCAN_DIR} -name ".${WRONGDISK}.md5" -delete
-				#echo "${SCAN_DIR}: Finished .${WRONGDISK}.md5 and .${WRONGDISK}.md5data"
-			fi
-		done &
-	done 
-	wait 
-   	#echo "Finish cleaning all"
+    # echo "Cleaning incorrectly placed md5data"
+    # Note Dirs with  a '.disable_md5' will be skipped
+    for SCAN_DIR in /mnt/disk* /mnt/cache; do
+        if [ "$SCAN_DIR" == "/mnt/disks" ] ; then
+              continue;
+        fi
+        for SCAN_DIR2 in /mnt/disk* /mnt/cache; do
+            if [ "$SCAN_DIR2" == "/mnt/disks" ] ; then
+                  continue;
+            fi
+            if [ "$SCAN_DIR" != "$SCAN_DIR2" ] ; then
+                # For debugging: Remove & to make it easier to break and kill for-loop process
+                WRONGDISK=$(basename $SCAN_DIR2)
+                #echo "${SCAN_DIR}: Cleaning .${WRONGDISK}.md5 and .${WRONGDISK}.md5data"
+                find  ${SCAN_DIR} -name ".${WRONGDISK}.md5" -delete
+                #echo "${SCAN_DIR}: Finished .${WRONGDISK}.md5 and .${WRONGDISK}.md5data"
+            fi
+        done &
+    done
+    wait
+    #echo "Finish cleaning all"
 }
 
 execMd5recurse() {
-	# Note that the md5recurse script sets the memory option, so we probably cannot overwrite it here
-	# When executed via crontab we need to set JAVA_HOME directly on this prompt
-	JAVA_HOME=$JAVA_HOME ${MD5RECURSE_EXEC} "$@" 2>> ${ERROR_LOGNAME}
+    # Note that the md5recurse script sets the memory option, so we probably cannot overwrite it here
+    # When executed via crontab we need to set JAVA_HOME directly on this prompt
+    JAVA_HOME=$JAVA_HOME ${MD5RECURSE_EXEC} "$@" 2>> ${ERROR_LOGNAME}
 }
 
-exitWithEcho() { 
+exitWithEcho() {
   echo $1
   exit 1
 }
 
 SCRIPT_ARGUMENTS="$*"
-pidCheck() { 
+pidCheck() {
   PID_FILE=$1
   # name for warning error message
   NAME=$2
@@ -104,22 +112,22 @@ pidCheck() {
   # If a previous invokation of this script is already running, exit
   procesName=$(basename "$0")
   if [ -z "$2" ] ; then
-  	NAME="$procesName"
+    NAME="$procesName"
   fi
 
   if [ -f $PID_FILE ]; then
     old_pid=$(cat $PID_FILE)
     if ps h "${old_pid}" | /usr/bin/grep "$procesName" ; then
-        log "${NAME} already running - exiting (arguments=$PID_SCRIPT_ARGUMENTS)" 
+        log "${NAME} already running - exiting (arguments=$PID_SCRIPT_ARGUMENTS)"
         exit 0
-    else 
+    else
         log "${NAME}: Old pid found with ${old_pid} but process does not exist. Starting anyway, my pid is $$"
     fi
   fi
 
   echo $$ > $PID_FILE || exitWithEcho "Error: Unable to write to $PID_FILE file, running as root?"
   chmod a+r $PID_FILE
-  
+
   if [ "$(cat $PID_FILE)" != "$$" ]; then
     log "WARNING: Write PID failed - write proteced storage or no more space or multiple concurrent movers started?"
     exit 0;
@@ -127,7 +135,7 @@ pidCheck() {
 }
 
 deleteIfEmpty() {
-	 [ ! -s $1 ] && rm $1
+     [ ! -s $1 ] && rm $1
 }
 
 
@@ -136,12 +144,13 @@ trap killGroup INT
 PID=/var/run/md5recurse_unraid.pid
 pidCheck $PID ""
 
-if [ "$USER" != "root" ]
-then
-  echo "WARNING: Not running as root (probably cannot write pid file)"
-  # echo "ERROR: Run as root"
-  # exit 1
+# $(id -u) is more reliable than "$USER" != "root" because $USER may not be correct
+if [[ $(id -u) != "0" ]]; then
+  # Files in crashplan restore was only restored partially and I suspect it because I may have executed a mover from non-root
+  echo "ERROR: Not running as root (probably cannot write pid file)"
+  exit 1
 fi
+
 
 ####################################################################################
 ########### Execute md5recurse simultaniously on each disk, then on user ###########
@@ -149,11 +158,11 @@ fi
 OPTIONS="-q ${EXTRA_OPTIONS} $*"
 
 if [ "$ENABLE_GLOBAL_MD5_FILES" == "1" ] ; then
-	OPTIONS="--globaldir ${MD5_GLOBAL_DIR} $OPTIONS"
+    OPTIONS="--globaldir ${MD5_GLOBAL_DIR} $OPTIONS"
 fi
 
 if [ "$ENABLE_LOCAL_MD5_FILES" == "1" ] ; then
-	OPTIONS="--local $OPTIONS"
+    OPTIONS="--local $OPTIONS"
 fi
 
 log "Started with options '${OPTIONS}'"
@@ -163,38 +172,44 @@ STARTTIME=$(date +%s)
 
 # Note Dirs with  a '.disable_md5' will be skipped
 for SCAN_DIR in /mnt/disk* /mnt/cache; do
-	# For debugging: Remove & to make it easier to break and kill for-loop process
-	DISK=$(basename $SCAN_DIR)
-	{
-		execMd5recurse -p "${DISK}" $OPTIONS ${SCAN_DIR} | tee ${LOGNAME}_${DISK}.log
-		deleteIfEmpty ${LOGNAME}_${DISK}.log
-		log "Finished: ${DISK} with options='${OPTIONS}'"
-	} &
+    # Avoid /mnt/disks, which may exist if there are disks in the server which are not in the array
+    if [[ "$SCAN_DIR" != "/mnt/disks" ]] ; then
+        # For debugging: Remove & to make it easier to break and kill for-loop process
+        DISK=$(basename $SCAN_DIR)
+        {
+            execMd5recurse -p "${DISK}" $OPTIONS ${SCAN_DIR} | tee ${LOGNAME}_${DISK}.log
+            deleteIfEmpty ${LOGNAME}_${DISK}.log
+            log "Finished: ${DISK} with options='${OPTIONS}'"
+        } &
+    fi
 
-	# It seems silly to wait for free processor as the disk IO is probably many times slower than MD5 computation
-	# waitForFreeProcessor
+    # It seems silly to wait for free processor as the disk IO is probably many times slower than MD5 computation
+    # waitForFreeProcessor
 done
 wait
 
 # Concatenate global files into user_global.md5data
 if [ "$ENABLE_GLOBAL_MD5_FILES" == "1" ] ; then
-	TMP_MD5_FILE=${MD5_GLOBAL_DIR}/user_global_temp.md5data
-	[ -f $TMP_MD5_FILE ] && rm ${TMP_MD5_FILE}
-	for SCAN_DIR in /mnt/disk* /mnt/cache; do
-		DISK=$(basename $SCAN_DIR)
-		globalFile="${MD5_GLOBAL_DIR}/${DISK}_global.md5data"
-		# For debugging: Remove & to make it easier to break and kill for-loop process
-		if [ -f  ] ; then
-			cat ${globalFile} | sed "s|^>/mnt/${DISK}/|>/mnt/user/|" >> ${TMP_MD5_FILE}
-		fi 
-	done
-	mv ${TMP_MD5_FILE} ${MD5_GLOBAL_DIR}/user_global.md5data
+    TMP_MD5_FILE=${MD5_GLOBAL_DIR}/user_global_temp.md5data
+    [ -f $TMP_MD5_FILE ] && rm ${TMP_MD5_FILE}
+    for SCAN_DIR in /mnt/disk* /mnt/cache; do
+        if [ "$SCAN_DIR" == "/mnt/disks" ] ; then
+              continue;
+        fi
+        DISK=$(basename $SCAN_DIR)
+        globalFile="${MD5_GLOBAL_DIR}/${DISK}_global.md5data"
+        # For debugging: Remove & to make it easier to break and kill for-loop process
+        if [ -f  ] ; then
+            cat ${globalFile} | sed "s|^>/mnt/${DISK}/|>/mnt/user/|" >> ${TMP_MD5_FILE}
+        fi
+    done
+    mv ${TMP_MD5_FILE} ${MD5_GLOBAL_DIR}/user_global.md5data
 fi
 
 # If we have local files enabled, also scan /mnt/user to we update the local md5 files
 if [ "$ENABLE_LOCAL_MD5_FILES" == "1" ] ; then
-	execMd5recurse -p user $OPTIONS /mnt/user | tee ${LOGNAME}_user.log
-	deleteIfEmpty ${LOGNAME}_user.log
+    execMd5recurse -p user $OPTIONS /mnt/user | tee ${LOGNAME}_user.log
+    deleteIfEmpty ${LOGNAME}_user.log
 fi
 #echo "Clean local md5-files"
 cleanLocalDirMd5FilesWhichHaveBeenMovedBetweenDisks
@@ -209,49 +224,49 @@ GLOBAL_MD5_DATA_FILES_GLOB_EXCLUDING_FINAL_MD5="disk*_global.md5data user_global
 GLOBAL_MD5_DATA_FILES_GLOB="disk*_global.md5data user_global.md5data cache_global.md5data md5data.md5"
 
 function backupToArchive() {
-	ARCHIVE_DIR=$MD5_GLOBAL_DIR/$1
-	zipFile=$2
+    ARCHIVE_DIR=$MD5_GLOBAL_DIR/$1
+    zipFile=$2
 
-	# Let the first backup any give day/week be moved to a archive, so daily and last weekly don't always overlap.
-	if [ ! -d "$ARCHIVE_DIR" ] && [ ! -f "$ARCHIVE_DIR/$zipFile" ] ; then
-		# dev/null because it gives warning when files are not there
-		mkdir_perm $ARCHIVE_DIR
-		cp $zipFile $ARCHIVE_DIR
-		# Old direct copy: cp -f $GLOBAL_MD5_DATA_FILES_GLOB $ARCHIVE_DIR 2> /dev/null
-	fi
+    # Let the first backup any give day/week be moved to a archive, so daily and last weekly don't always overlap.
+    if [ ! -d "$ARCHIVE_DIR" ] && [ ! -f "$ARCHIVE_DIR/$zipFile" ] ; then
+        # dev/null because it gives warning when files are not there
+        mkdir_perm $ARCHIVE_DIR
+        cp $zipFile $ARCHIVE_DIR
+        # Old direct copy: cp -f $GLOBAL_MD5_DATA_FILES_GLOB $ARCHIVE_DIR 2> /dev/null
+    fi
 }
 
 if [ "$ENABLE_GLOBAL_MD5_FILES" == "1" ] ; then
-	# Goto dir to get md5sum to generate file without directory prefix
-	pushd ${MD5_GLOBAL_DIR} > /dev/null
-	md5sum -b ${GLOBAL_MD5_DATA_FILES_GLOB_EXCLUDING_FINAL_MD5} > md5data.md5
+    # Goto dir to get md5sum to generate file without directory prefix
+    pushd ${MD5_GLOBAL_DIR} > /dev/null
+    md5sum -b ${GLOBAL_MD5_DATA_FILES_GLOB_EXCLUDING_FINAL_MD5} > md5data.md5
 
-	BACKUP_ZIP=backup.zip
-	zip $BACKUP_ZIP ${GLOBAL_MD5_DATA_FILES_GLOB}
-	chmod a+r $BACKUP_ZIP
+    BACKUP_ZIP=backup.zip
+    zip $BACKUP_ZIP ${GLOBAL_MD5_DATA_FILES_GLOB}
+    chmod a+r $BACKUP_ZIP
 
-	# Dayly name does not include Hour (%H%M) to avoid several invocations during one day to cause prune to remove all other daily archives
-	backupToArchive "${ARCHIVE_PREFIX_DAILY}$(date +%Y-%m-%d)" $BACKUP_ZIP
-	backupToArchive "${ARCHIVE_PREFIX_WEEKLY}$(date +%Y-w%W)" $BACKUP_ZIP
+    # Dayly name does not include Hour (%H%M) to avoid several invocations during one day to cause prune to remove all other daily archives
+    backupToArchive "${ARCHIVE_PREFIX_DAILY}$(date +%Y-%m-%d)" $BACKUP_ZIP
+    backupToArchive "${ARCHIVE_PREFIX_WEEKLY}$(date +%Y-w%W)" $BACKUP_ZIP
 
-	# Copy to backup-disks which are located on unRaid as a subdir in usershare but with forced selected disk
-	for DISKNAME in ${MD5_GLOBAL_BACKUP_DISKS}  ; do
-		# For debugging: Remove & to make it easier to break and kill for-loop process
-		DISK=$(basename $DISKNAME)
-		BACKUP_DISK_DIR=/mnt/${DISK}/${MD5_GLOBAL_SHARE}/${PREFIX_FOR_BACKUP_FOLDER}${DISK}
-		mkdir_perm ${BACKUP_DISK_DIR}
-		# Old direct copy: cp -p ${GLOBAL_MD5_DATA_FILES_GLOB} ${BACKUP_DISK_DIR}
-		cp $BACKUP_ZIP ${BACKUP_DISK_DIR}
-	done
-	rm $BACKUP_ZIP
+    # Copy to backup-disks which are located on unRaid as a subdir in usershare but with forced selected disk
+    for DISKNAME in ${MD5_GLOBAL_BACKUP_DISKS}  ; do
+        # For debugging: Remove & to make it easier to break and kill for-loop process
+        DISK=$(basename $DISKNAME)
+        BACKUP_DISK_DIR=/mnt/${DISK}/${MD5_GLOBAL_SHARE}/${PREFIX_FOR_BACKUP_FOLDER}${DISK}
+        mkdir_perm ${BACKUP_DISK_DIR}
+        # Old direct copy: cp -p ${GLOBAL_MD5_DATA_FILES_GLOB} ${BACKUP_DISK_DIR}
+        cp $BACKUP_ZIP ${BACKUP_DISK_DIR}
+    done
+    rm $BACKUP_ZIP
 
-	# Warning: This is actually a bit dangerous if we do rm -rf. Am I sure the print does not contain a badly excaped slash, causing be to delete root? pushd necessary or delete runs in wrong dir. Hence move to recyclebin, which can be autocleaned elsewhere on monthly basis or similar
-	[ ! -d .Recycle.Bin ] && mkdir .Recycle.Bin
-	# WARNING: This program is running as root, so I'm reluctant to call 'rm' here without having a prefix that ensures me I'm deleting within the desired directory. Consider wiping .Recycle.Bin if delete is desired
-	# Instead of delete, move to recycle bin with this: xargs -L 1 -I {} mv {} .Recycle.Bin
-	find $MD5_GLOBAL_DIR -name "${ARCHIVE_PREFIX_DAILY}*" -type d -maxdepth 1 | sort -r | awk '{i=i+1; if(i>3)print }' | xargs -L 1 -I {} mv {} .Recycle.Bin
-	find $MD5_GLOBAL_DIR -name "${ARCHIVE_PREFIX_WEEKLY}*" -type d -maxdepth 1 | sort -r | awk '{i=i+1; if(i>3)print }' | xargs -L 1 -I {} mv {} .Recycle.Bin
-	popd > /dev/null
+    # Warning: This is actually a bit dangerous if we do rm -rf. Am I sure the print does not contain a badly excaped slash, causing be to delete root? pushd necessary or delete runs in wrong dir. Hence move to recyclebin, which can be autocleaned elsewhere on monthly basis or similar
+    [ ! -d .Recycle.Bin ] && mkdir .Recycle.Bin
+    # WARNING: This program is running as root, so I'm reluctant to call 'rm' here without having a prefix that ensures me I'm deleting within the desired directory. Consider wiping .Recycle.Bin if delete is desired
+    # Instead of delete, move to recycle bin with this: xargs -L 1 -I {} mv {} .Recycle.Bin
+    find $MD5_GLOBAL_DIR -name "${ARCHIVE_PREFIX_DAILY}*" -type d -maxdepth 1 | sort -r | awk '{i=i+1; if(i>3)print }' | xargs -L 1 -I {} mv {} .Recycle.Bin
+    find $MD5_GLOBAL_DIR -name "${ARCHIVE_PREFIX_WEEKLY}*" -type d -maxdepth 1 | sort -r | awk '{i=i+1; if(i>3)print }' | xargs -L 1 -I {} mv {} .Recycle.Bin
+    popd > /dev/null
 fi
 
 deleteIfEmpty ${ERROR_LOGNAME}

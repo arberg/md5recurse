@@ -1,8 +1,11 @@
 #!/usr/bin/env sh
 
-program="/usr/local/app/md5recurse/bin/md5recurse"
-if [ -f $program ] ; then
-	$program $*
-else
-	echo "Program missing: $program"
+# https://stackoverflow.com/questions/592620/how-can-i-check-if-a-program-exists-from-a-bash-script
+COMMAND="$ALEXAPP/md5recurse/bin/md5recurse"
+if ! command -v $COMMAND &> /dev/null
+then
+	echo "Program missing: $COMMAND"
+    exit 1
 fi
+
+$COMMAND $*

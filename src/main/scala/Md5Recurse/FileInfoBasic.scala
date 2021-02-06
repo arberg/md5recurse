@@ -13,6 +13,8 @@ class FileInfoBasic(lastModified: Long, size: Long, dirPathName: String, filenam
       */
     def getLastModified(): Long = lastModified
 
+    def getLastModifiedString(): String = DateUtil.timeToStr(lastModified)
+
     //  def file(): File = file
     def getDirectoryPath() = dirPathName
 

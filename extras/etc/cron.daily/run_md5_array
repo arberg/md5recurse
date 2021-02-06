@@ -1,4 +1,4 @@
 #!/usr/bin/bash
 
-PATH="$PATH:/boot/bin" /boot/bin/touch_secrets
-PATH="$PATH:/boot/bin" /boot/bin/md5recurse_unraid
+PATH="$PATH:$ALEXBIN" $ALEXBIN/touch_secrets
+PATH="$PATH:$ALEXBIN" $ALEXBIN/md5recurse_unraid
