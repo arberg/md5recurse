@@ -1,22 +1,22 @@
 package Md5Recurse
 
-import java.io.{File, FileNotFoundException, PrintWriter}
-import java.security.MessageDigest
-import java.text.SimpleDateFormat
-import java.util.Calendar
-
 import Util.WordWrap._
 import com.twmacinta.util.MD5
 import scalax.file.Path
 import scalax.io.Codec
 
+import java.io.{File, FileNotFoundException, PrintWriter}
+import java.security.MessageDigest
+import java.text.SimpleDateFormat
+import java.util.Calendar
 import scala.collection.immutable.Seq
 import scala.collection.{mutable, _}
 
 // We keep an execution log so our tests can monitor what the program did, when it is difficult to determine by seeing output
 object Version {
     // 1.0.6: Log changes: --only-print-missing -V2 also prints files with updated timestamp not read. Updated to gradle 6
-    // 1.0.7: Always check if local md5 files should be updated, and only update them if they are changed. --check-all now include timestamp in diffs. Added '-h' as help option.
+    // 1.0.7: Always check if local md5 files should be updated, and only update them if they are changed. --check-all now include timestamp in diffs. Added '-h' as help option. Consider files
+    // equal timestamp if one has zero millis, and otherwise equal.
     var version = "1.0.7"
 }
 
@@ -79,7 +79,8 @@ case class Config(
                      optionGlobalNonRelative: Boolean = false,
                      optionLocal: Boolean = false,
                      optionOnlyPrintModified: Boolean = false,
-                     alwaysUpdateLocal: Boolean = true, // now unused as of 1.0.7
+                     // now unused as of 1.0.7, its slower as it means we always read local files, so we might want to add the feature again in the future. See 2021.02.06 commit for options
+                     alwaysUpdateLocal: Boolean = true,
                      silenceWarnings: Boolean = false,
                      printMd5: Boolean = false,
                      useFileAttributes: Boolean = true) {
@@ -335,8 +336,11 @@ object Md5Recurse {
                 val outLines: Seq[String] = outObjects
                     .zipWithIndex
                     .map { case (o, i: Int) => (if (i == 0 && writeBOM) "\uFEFF" else "") + printer(o) }
-                    .flatMap { _.split("\n") } // Split each line into separate entry in list, so we can diff with lines in .md5 files
+                    .flatMap {
+                        _.split("\n")
+                    } // Split each line into separate entry in list, so we can diff with lines in .md5 files
                 val path = Path.fromString(file.getPath)
+
                 def equals[T](list1: T, list2: T) = {
                     val equals = list1 == list2
                     if (equals) {
@@ -379,8 +383,8 @@ object Md5Recurse {
             val dataFile: File = new File(dir + "/" + md5FileName)
             if (isFileUpdated || dataFile.lastModified() < greatestLastModifiedTimestampInDir || Config.it.alwaysUpdateLocal || l.isEmpty) {
                 writeMd5DataCommon(dataFile, l, printer, encoding, writeBOM)
-//            } else {
-//                if (Config.it.logMd5ScansAndSkipped) Console.out.println("Skipping local file " + dataFile)
+                //            } else {
+                //                if (Config.it.logMd5ScansAndSkipped) Console.out.println("Skipping local file " + dataFile)
             }
         }
     }
@@ -409,12 +413,12 @@ object Md5Recurse {
     }
 
     /**
-      * Check all files in the given dir. If files timestamp changed then the hash will be computed and updated.
-      *
-      * @param dir          the parent dir
-      * @param globalDirSet map of md5's
-      * @return
-      */
+     * Check all files in the given dir. If files timestamp changed then the hash will be computed and updated.
+     *
+     * @param dir          the parent dir
+     * @param globalDirSet map of md5's
+     * @return
+     */
     //noinspection TypeAnnotation
     def verifyAndGenerateMd5ForDirectoryNonRecursive(dir: File, globalDirSet: Option[Map[String, Md5FileInfo]]) = {
         verifyAndGenerateMd5NonRecursive(dir, FileUtil.listFiles(dir).toList, globalDirSet)
@@ -438,7 +442,7 @@ object Md5Recurse {
     }
 
     def isMatchingFileLastModified(fileInfo: Option[Md5FileInfo], lastModified: Long): Boolean = {
-        fileInfo.isDefined && fileInfo.get.lastModified == lastModified
+        fileInfo.isDefined && fileInfo.get.getFileInfo.isLastModifiedEqualTo(lastModified)
     }
 
     def mostRecent(val1: Option[Md5FileInfo], val2: Option[Md5FileInfo]): Option[Md5FileInfo] = {
@@ -536,12 +540,14 @@ object Md5Recurse {
                 }
                 val recordedMd5Info: Md5FileInfo = recordedMd5InfoOption.get
                 val recordedFileInfo = recordedMd5Info.getFileInfo
+                val currentLastModified = currentFileInfo.getLastModified()
+                val previousLastModified = recordedFileInfo.getLastModified()
                 if (config.logMd5ScansSkippedAndPrintDetails) {
-                    Console.out.println("Cur lastMod=" + currentFileInfo.getLastModified() + ", len=" + recordedFileInfo.getSize())
-                    Console.out.println("Rec lastMod=" + recordedFileInfo.getLastModified() + ", len=" + recordedFileInfo.getSize() + ", md5=" + recordedMd5Info.md5String)
+                    Console.out.println("Cur lastMod=" + currentLastModified + ", len=" + recordedFileInfo.getSize())
+                    Console.out.println("Rec lastMod=" + previousLastModified + ", len=" + recordedFileInfo.getSize() + ", md5=" + recordedMd5Info.md5String)
                 }
-                val isFileTimestampIdentical = currentFileInfo.getLastModified() == recordedFileInfo.getLastModified()
-                if (!isFileTimestampIdentical && Config.it.doPrintModified) Console.out.println("Modified " + f)
+                val isFileTimestampIdentical = recordedFileInfo.isLastModifiedEqualTo(currentFileInfo)
+                if (Config.it.doPrintModified && !isFileTimestampIdentical) Console.out.println("Modified: " + f)
                 if (isFileTimestampIdentical || Config.it.doVerifyModified) {
                     //  still check if file size change, to generate new md5
                     if (Config.it.doVerify) {
@@ -631,8 +637,8 @@ object Md5Recurse {
         }
 
         /**
-          * Write the final pending changes. Needed when scanning individual files
-          */
+         * Write the final pending changes. Needed when scanning individual files
+         */
         def updateFilesFinalPendingChanges(): Unit = {
             for (pendingDir: String <- pendingMd5sMap.map.keys) {
                 updateFileSetAndWriteFilesForDirForced(new File(pendingDir), pendingMd5sMap.removeDir(pendingDir).get.values.toList, doFlush = false)
@@ -671,10 +677,10 @@ object Md5Recurse {
     }
 
     /**
-      * Used to recursively delete .md5 and .md5data files.
-      *
-      * Will only delete recursively if parent dir contains file to delete. This is to avoid cost of traversing dir on each invocation
-      */
+     * Used to recursively delete .md5 and .md5data files.
+     *
+     * Will only delete recursively if parent dir contains file to delete. This is to avoid cost of traversing dir on each invocation
+     */
     def recursivelyDeleteLocalMd5WithMessageIfExists(dirPath: Path, filenameToDelete: String): Unit = {
         val md5dataPath = dirPath / filenameToDelete
         if (md5dataPath.exists) {
