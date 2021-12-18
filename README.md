@@ -28,6 +28,16 @@ The script scans all disks separately and creates a global-md5data file for each
 
 [unRAID forum Thread](https://lime-technology.com/forums/topic/70736-md5recurse-hash-program-built-for-unraid/)
 
+### Linux Info extended file attributes
+
+See file attributes written by md5recurse in linux using 
+
+* list all
+`getfattr <file>`
+
+* print value of the md5recurse file attribute
+`getfattr -n user.md5recurse <file>`
+
 ### Usages
 * Should a disk fail the global-disk files can be used to verify a possible restore of the disk. 
 * Should a subfolder in the common user-folder be lost and later restored, then the global user-md5data can be used to verify the content of the restored folder.
