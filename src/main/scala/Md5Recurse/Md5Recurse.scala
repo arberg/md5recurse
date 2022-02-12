@@ -5,7 +5,7 @@ import com.twmacinta.util.MD5
 import scalax.file.Path
 import scalax.io.Codec
 
-import java.io.{File, FileNotFoundException, PrintWriter}
+import java.io.{File, FileNotFoundException, PrintStream, PrintWriter}
 import java.security.MessageDigest
 import java.text.SimpleDateFormat
 import java.util.Calendar
@@ -16,8 +16,10 @@ import scala.collection.{mutable, _}
 object Version {
     // 1.0.6: Log changes: --only-print-missing -V2 also prints files with updated timestamp not read. Updated to gradle 6
     // 1.0.7: Always check if local md5 files should be updated, and only update them if they are changed. --check-all now include timestamp in diffs. Added '-h' as help option. Consider files
+    // 1.0.8: Print "Missing:" with colon. Added print to log-file instead of stdout+err for correct UTF-8 encoding.
+
     // equal timestamp if one has zero millis, and otherwise equal.
-    var version = "1.0.7"
+    var version = "1.0.8"
 }
 
 object ExecutionLog {
@@ -83,6 +85,7 @@ case class Config(
                      alwaysUpdateLocal: Boolean = true,
                      silenceWarnings: Boolean = false,
                      printMd5: Boolean = false,
+                     log: String = null,
                      useFileAttributes: Boolean = true) {
 
     val writeMd5DataGlobally = !doPrintMissing && !doPrintModified && md5dataGlobalFolder.isDefined
@@ -216,6 +219,10 @@ class Md5OptionParser extends scopt.OptionParser[Config]("Md5Recurse") {
         c.copy(printMd5 = true)
     } text pruneAndWrapText("print MD5 hashes to stdout")
 
+    opt[String]("log") action { (x, c) =>
+        c.copy(log = x)
+    } text pruneAndWrapText("write output to log-file in same encoding as specified (default UTF-8) instead of stdout+stderr (except for this help).")
+
     def verboseCopy(c: Config, level: Int): Config =
         c.copy(
             logMd5Scans = level % 10 >= 1,
@@ -272,10 +279,8 @@ class Md5OptionParser extends scopt.OptionParser[Config]("Md5Recurse") {
     checkConfig { c =>
         // read assert logic as !(x => y), thus assert x => y (and x => y is the same as !x || y)
         // if printing or checking then either global md5 must be enabled or src-folder with local read must be enabled
-    {
         if (c.doPrintMissing && c.readMd5DataPrDirectory) Console.out.println("WARNING: local dir files will not be read when searching for missing files")
         success
-    }
     }
     checkConfig { c =>
         // src dirs may only be empty when printing or checking
@@ -477,7 +482,7 @@ object Md5Recurse {
         if (Config.it.doPrintMissing && globalDirSet.isDefined) {
             for ((_, md5FileInfo: Md5FileInfo) <- globalDirSet.get
                  if !new File(dir, md5FileInfo.getFileInfo.getName).exists()) {
-                Console.out.println("Missing " + md5FileInfo.getFileInfo.getDirectoryPath() + File.separatorChar + md5FileInfo.getFileInfo.getName)
+                Console.out.println("Missing: " + md5FileInfo.getFileInfo.getDirectoryPath() + File.separatorChar + md5FileInfo.getFileInfo.getName)
             }
         }
 
@@ -721,7 +726,7 @@ object Md5Recurse {
                 postScan(file, md5s, failureMd5s, failureMessages, isFileUpdated, greatestLastModifiedTimestampInDir)
             }
         } else if (Config.it.doPrintMissing) {
-            Console.out.println("MissingDir " + dirOrFile)
+            Console.out.println("MissingDir: " + dirOrFile)
             for ((f, _) <- fileSet.getDir(dirOrFile).get) {
                 Console.out.println("  " + f)
             }
@@ -783,6 +788,13 @@ object Md5Recurse {
             config =>
                 Config.it = config
                 FileUtil.silenceReadErrors = config.silenceWarnings
+                if (config.log != null) {
+                    // This causes subsequent system.out.println and println() to write to file in specified charset
+                    // Alternatively (better) change all prints to go through my custom printer, and use both println and write-to-file
+                    val outStream = new PrintStream(config.log, config.encoding)
+                    System.setOut(outStream)
+                    System.setErr(outStream) // This runs after parsing so won't affect error-output from wrong parameters
+                }
                 for (d <- config.srcDirs if !d.exists()) {
                     if (!config.quiet) Console.out.println("Src folder does not exist: " + d)
                 }

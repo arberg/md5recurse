@@ -38,6 +38,18 @@ See file attributes written by md5recurse in linux using
 * print value of the md5recurse file attribute
 `getfattr -n user.md5recurse <file>`
 
+#### Preserve extended file attributes
+
+Linux
+
+* Extended file attributes will not be preserved when moving files between different samba-shares, as that amounts to copying files. 
+
+* Moving files within linux or within same samba share, will preserve extended file attributes.  
+
+* Copying files in linuxs with 'cp', see -p and --preserve.
+
+* rsync preseverse file-attributes with -X or --xattrs
+
 ### Usages
 * Should a disk fail the global-disk files can be used to verify a possible restore of the disk. 
 * Should a subfolder in the common user-folder be lost and later restored, then the global user-md5data can be used to verify the content of the restored folder.
@@ -51,3 +63,8 @@ Build
 The projects is built with gradle. Run `gradle build`. Distribution will be placed in build\distributions.
 
 The project can be imported into IntelliJ using IntelliJ import command. Choose import as Gradle project.
+
+
+OneLine execute test
+==========
+gw assembleDist; rm -r d:\Development\GitHub\md5recurse\build\md5recurse ; Expand-Archive d:\Development\GitHub\md5recurse\build\distributions\md5recurse.zip d:\Development\GitHub\md5recurse\build; .\build\md5recurse\bin\md5recurse.bat 
