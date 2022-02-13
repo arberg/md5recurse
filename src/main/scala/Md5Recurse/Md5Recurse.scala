@@ -49,6 +49,9 @@ object Sys {
         // Sys.println("TEST print encoding æøåÆØÅ \u4e16\u754c\u4f60\u597d\uff01")
     }
 
+    def closePrintStream(): Unit = {
+        if (logOutStream != null) logOutStream.close()
+    }
     def println(x: Any) {
         Console.println(x)
         if (logOutStream != null) {
@@ -805,50 +808,55 @@ object Md5Recurse {
     def main(args: Array[String]): Unit = {
         ExecutionLog.current = new ExecutionLog
         val parser = new Md5OptionParser // parser.parse returns Option[C]
-        parser.parse(args, Config()) foreach {
-            config =>
-                Config.it = config
-                FileUtil.silenceReadErrors = config.silenceWarnings
-                if (config.log != null) {
-                    // This causes subsequent system.out.println and Sys.println() to write to file in specified charset
-                    // Alternatively (better) change all prints to go through my custom printer, and use both Sys.println and write-to-file
-                    Sys.setPrintOutput(config.log, config.encoding)
-                }
-                for (d <- config.srcDirs if !d.exists()) {
-                    if (!config.quiet) Sys.println("Src folder does not exist: " + d)
-                }
-                if (config.deleteMd5) {
-                    deleteMd5s(config)
-                } else {
-                    if (!config.quiet) {
-                        val prefix = "Storage enabled:"
-                        if (config.useFileAttributes) {
-                            Sys.println(s"$prefix File attributes")
-                        }
-                        if (config.readMd5DataPrDirectory) {
-                            val postfixLocalStorage = "Local MD5 files pr directory"
-                            if (config.writeMd5DataPrDirectory) {
-                                Sys.println(s"$prefix $postfixLocalStorage")
-                            } else {
-                                Sys.println(s"$prefix Will read but not update $postfixLocalStorage")
+
+        try {
+            parser.parse(args, Config()) foreach {
+                config =>
+                    Config.it = config
+                    FileUtil.silenceReadErrors = config.silenceWarnings
+                    if (config.log != null) {
+                        // This causes subsequent system.out.println and Sys.println() to write to file in specified charset
+                        // Alternatively (better) change all prints to go through my custom printer, and use both Sys.println and write-to-file
+                        Sys.setPrintOutput(config.log, config.encoding)
+                    }
+                    for (d <- config.srcDirs if !d.exists()) {
+                        if (!config.quiet) Sys.println("Src folder does not exist: " + d)
+                    }
+                    if (config.deleteMd5) {
+                        deleteMd5s(config)
+                    } else {
+                        if (!config.quiet) {
+                            val prefix = "Storage enabled:"
+                            if (config.useFileAttributes) {
+                                Sys.println(s"$prefix File attributes")
+                            }
+                            if (config.readMd5DataPrDirectory) {
+                                val postfixLocalStorage = "Local MD5 files pr directory"
+                                if (config.writeMd5DataPrDirectory) {
+                                    Sys.println(s"$prefix $postfixLocalStorage")
+                                } else {
+                                    Sys.println(s"$prefix Will read but not update $postfixLocalStorage")
+                                }
+                            }
+                            if (config.readMd5DataGlobally) {
+                                val postfixLocalStorage = "Global MD5 data file"
+                                if (config.writeMd5DataGlobally) {
+                                    Sys.println(s"$prefix $postfixLocalStorage")
+                                } else {
+                                    Sys.println(s"$prefix Will read but not update $postfixLocalStorage")
+                                }
                             }
                         }
-                        if (config.readMd5DataGlobally) {
-                            val postfixLocalStorage = "Global MD5 data file"
-                            if (config.writeMd5DataGlobally) {
-                                Sys.println(s"$prefix $postfixLocalStorage")
-                            } else {
-                                Sys.println(s"$prefix Will read but not update $postfixLocalStorage")
-                            }
+
+                        def paren(str: String) = if (str.isEmpty) "" else s" ($str)"
+
+                        Timer("Md5Recurse" + paren(config.md5FilePrefix), config.logPerformance) {
+                            () => execute(config)
                         }
                     }
-
-                    def paren(str: String) = if (str.isEmpty) "" else s" ($str)"
-
-                    Timer("Md5Recurse" + paren(config.md5FilePrefix), config.logPerformance) {
-                        () => execute(config)
-                    }
-                }
+            }
+        } finally {
+            Sys.closePrintStream() // Necessary for tests
         }
     }
 
