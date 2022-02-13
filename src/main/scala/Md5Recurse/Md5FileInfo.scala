@@ -100,18 +100,18 @@ object Md5FileInfo {
     def readMd5FileAttribute(file: File): Option[Md5FileInfo] = {
         val attrView: UserDefinedFileAttributeView = FileUtil.attrView(file)
         val dataLine: Option[String] = FileUtil.getAttr(attrView, ATTR_MD5RECURSE)
-        if (Config.it.logMd5ScansSkippedAndLocalAndAttributeReads) println("Reading fileAttribute " + file.getName + ": " + (if (dataLine.isDefined) "Found" else "Not available"))
+        if (Config.it.logMd5ScansSkippedAndLocalAndAttributeReads) Sys.println("Reading fileAttribute " + file.getName + ": " + (if (dataLine.isDefined) "Found" else "Not available"))
         if (dataLine.isDefined) {
-            if (logEnabled) println(file + ": Attr read: '" + dataLine.get + "'")
+            if (logEnabled) Sys.println(file + ": Attr read: '" + dataLine.get + "'")
             Some(parseMd5FileAttribute(file, dataLine.get))
         } else {
-            if (logEnabled) println(file + ": No Attr")
+            if (logEnabled) Sys.println(file + ": No Attr")
             None
         }
     }
 
     def readDirFile(md5dataFilename: String, md5sumWithDataInComment: Boolean): Option[Map[String, Md5FileInfo]] = {
-        if (Config.it.logMd5ScansSkippedAndLocalAndAttributeReads) println("Reading local md5data: " + md5dataFilename)
+        if (Config.it.logMd5ScansSkippedAndLocalAndAttributeReads) Sys.println("Reading local md5data: " + md5dataFilename)
         val md5dataFile = new File(md5dataFilename)
         val fileSet = readMd5DataFile(md5dataFile, md5sumWithDataInComment)
         fileSet.getDir(md5dataFile.getParentFile)
@@ -193,7 +193,7 @@ object Md5FileInfo {
             val newDataLine = inputMd5FileInfo.exportAttrLine
             if (oldAttr.isEmpty || oldAttr.get != newDataLine) {
                 if (FileUtil.setAttr(attrView, Md5FileInfo.ATTR_MD5RECURSE, newDataLine)) {
-                    if (Md5FileInfo.logEnabled) println(file + ": Attr written: '" + newDataLine + "'" + " - New lastModified " + file.lastModified())
+                    if (Md5FileInfo.logEnabled) Sys.println(file + ": Attr written: '" + newDataLine + "'" + " - New lastModified " + file.lastModified())
                 }
             }
         }
@@ -207,7 +207,7 @@ object Md5FileInfo {
             if (doPreserveLastModified && file.lastModified != md5FileInfo.lastModified) {
                 file.setLastModified(md5FileInfo.lastModified)
                 if (file.lastModified() != md5FileInfo.lastModified) {
-                    println("WARNING: Failed to set fileAttribute with same lastModified as file timestamp")
+                    Sys.println("WARNING: Failed to set fileAttribute with same lastModified as file timestamp")
                 }
             }
         }

@@ -7,7 +7,7 @@ class GlobalWriter(config: Config) extends GlobalWriterTrait {
     val realWriter: GlobalWriterReal = if (enabled) new GlobalWriterReal(config) else null
 
     def write(dir: File, md5s: List[Md5FileInfo], doFlush: Boolean) {
-        //if (Config.debugLog) println("GlobalWriter: " + dir)
+        //if (Config.debugLog) Sys.println("GlobalWriter: " + dir)
         if (enabled) realWriter.write(dir, md5s, doFlush)
     }
 

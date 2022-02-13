@@ -9,7 +9,7 @@ object Timer {
         task.apply()
         val elapsedMilli = timer.elapsedMilli()
         if (enable) {
-            println("%s took %.3fs".format(name, elapsedMilli / 1000.0f))
+            Sys.println("%s took %.3fs".format(name, elapsedMilli / 1000.0f))
         }
     }
 
@@ -18,7 +18,7 @@ object Timer {
         val t = task.apply()
         val elapsedMilli = timer.elapsedMilli()
         if (enable) {
-            println("%s took %.3fs".format(name, elapsedMilli / 1000.0f))
+            Sys.println("%s took %.3fs".format(name, elapsedMilli / 1000.0f))
         }
         t
     }

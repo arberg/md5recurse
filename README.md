@@ -65,6 +65,9 @@ The projects is built with gradle. Run `gradle build`. Distribution will be plac
 The project can be imported into IntelliJ using IntelliJ import command. Choose import as Gradle project.
 
 
-OneLine execute test
+One-Line execute test
 ==========
-gw assembleDist; rm -r d:\Development\GitHub\md5recurse\build\md5recurse ; Expand-Archive d:\Development\GitHub\md5recurse\build\distributions\md5recurse.zip d:\Development\GitHub\md5recurse\build; .\build\md5recurse\bin\md5recurse.bat 
+Powershell. Useful to test encoding of print to stdout.  
+```
+gw assembleDist; rm -r d:\Development\GitHub\md5recurse\build\md5recurse ; Expand-Archive d:\Development\GitHub\md5recurse\build\distributions\md5recurse.zip d:\Development\GitHub\md5recurse\build; .\build\md5recurse\bin\md5recurse.bat
+```

@@ -7,8 +7,8 @@ import java.io.File
   */
 object TestWalkTree extends App {
     val dir = new File("c:/temp")
-    //    println(walkTree(new File("d:/temp")));
-    for (f <- FileUtil.walkTree(dir)) println(f)
-    for (f <- FileUtil.walkTree(dir) if f.getName.endsWith(".cfg")) println(f)
-    for (f <- FileUtil.walkTree(dir) if f.isDirectory()) println(f)
+    //    Sys.println(walkTree(new File("d:/temp")));
+    for (f <- FileUtil.walkTree(dir)) Sys.println(f)
+    for (f <- FileUtil.walkTree(dir) if f.getName.endsWith(".cfg")) Sys.println(f)
+    for (f <- FileUtil.walkTree(dir) if f.isDirectory()) Sys.println(f)
 }

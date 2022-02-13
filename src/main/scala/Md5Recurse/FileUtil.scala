@@ -27,7 +27,7 @@ object FileUtil {
                 m.setAccessible(true)
                 isReparsePoint = m.invoke(attr).asInstanceOf[Boolean]
             } catch {
-                case e: Exception => println("Failed to read if link " + file)
+                case e: Exception => Sys.println("Failed to read if link " + file)
             }
         }
         isReparsePoint
@@ -42,7 +42,7 @@ object FileUtil {
                 new File(canonDir, file.getName());
             }
         val symlink = canon.getCanonicalFile() != canon.getAbsoluteFile()
-        if (symlink && !Config.it.quiet) println("symlink skipped " + file)
+        if (symlink && !Config.it.quiet) Sys.println("symlink skipped " + file)
         symlink
     }
 
@@ -75,9 +75,9 @@ object FileUtil {
 
     def logFileTimestamps(file: File) {
         val attr = Files.readAttributes(file.toPath, classOf[BasicFileAttributes])
-        Console.out.println("creationTime: " + attr.creationTime)
-        Console.out.println("lastAccessTime: " + attr.lastAccessTime)
-        Console.out.println("lastModifiedTime: " + attr.lastModifiedTime)
+        Sys.println("creationTime: " + attr.creationTime)
+        Sys.println("lastAccessTime: " + attr.lastAccessTime)
+        Sys.println("lastModifiedTime: " + attr.lastModifiedTime)
     }
 
     def attrView(file: File): UserDefinedFileAttributeView = {
@@ -180,7 +180,7 @@ object FileUtil {
         try {
             if (attrView.list().contains(name)) {
                 attrView.delete(name);
-                println("deleted attribute")
+                Sys.println("deleted attribute")
             }
         } catch {
             case e: Exception => if (!silenceReadErrors) Console.err.println("Unable to delete file attribute for :" + e)

@@ -31,10 +31,30 @@ class ExecutionLog {
 }
 
 object Sys {
+
     val OS: String = System.getProperty("os.name")
     val isWin: Boolean = OS.startsWith("Windows")
     val currentDateString: String = new SimpleDateFormat("yyyyMMdd_HHmm").format(Calendar.getInstance.getTime)
     val lineSeparator: String = System.lineSeparator() // Unused but might be useful, currently file writing converts \n
+
+    var logOutStream: PrintStream = null
+
+    def setPrintOutput(logFile: String, encoding: String) {
+        Path.fromString(logFile).doCreateParents()
+        logOutStream = new PrintStream(logFile, encoding)
+        // Don't overwrite normal print, as it blocks console output.
+        //        System.setOut(outStream)
+        //        System.setErr(outStream) // This runs after parsing so won't affect error-output from wrong parameters
+        // -- Test
+        // Sys.println("TEST print encoding æøåÆØÅ \u4e16\u754c\u4f60\u597d\uff01")
+    }
+
+    def println(x: Any) {
+        Console.println(x)
+        if (logOutStream != null) {
+            logOutStream.println(x)
+        }
+    }
 }
 
 object Config {
@@ -279,7 +299,7 @@ class Md5OptionParser extends scopt.OptionParser[Config]("Md5Recurse") {
     checkConfig { c =>
         // read assert logic as !(x => y), thus assert x => y (and x => y is the same as !x || y)
         // if printing or checking then either global md5 must be enabled or src-folder with local read must be enabled
-        if (c.doPrintMissing && c.readMd5DataPrDirectory) Console.out.println("WARNING: local dir files will not be read when searching for missing files")
+        if (c.doPrintMissing && c.readMd5DataPrDirectory) Sys.println("WARNING: local dir files will not be read when searching for missing files")
         success
     }
     checkConfig { c =>
@@ -288,7 +308,7 @@ class Md5OptionParser extends scopt.OptionParser[Config]("Md5Recurse") {
     }
     checkConfig { c =>
         // src dirs may only be empty when printing or checking
-        if (c.quiet && c.logMd5Scans) Console.out.println("Quiet and verbose specified at the same time")
+        if (c.quiet && c.logMd5Scans) Sys.println("Quiet and verbose specified at the same time")
         success
     }
 }
@@ -307,7 +327,7 @@ object Md5Recurse {
 
     def initNativeLibrary() {
         if (!MD5.initNativeLibrary()) {
-            Console.out.println("WARNING: Native library NOT loaded")
+            Sys.println("WARNING: Native library NOT loaded")
         }
     }
 
@@ -349,7 +369,7 @@ object Md5Recurse {
                 def equals[T](list1: T, list2: T) = {
                     val equals = list1 == list2
                     if (equals) {
-                        if (Config.it.logMd5ScansAndSkipped) Console.out.println("Identical local file " + file)
+                        if (Config.it.logMd5ScansAndSkipped) Sys.println("Identical local file " + file)
                     }
                     equals
                 }
@@ -357,14 +377,14 @@ object Md5Recurse {
                 // Only update local .md5 files if they have changed. If a file in the directory has identical md5-sum, but modified timestamp, then this .md5 file will get updated,
                 // because the timestamp is in a comment in the .md5 file
                 if (!path.exists || !equals(outLines, path.lines().toList)) {
-                    if (Config.it.logMd5ScansAndSkipped) Console.out.println("Updating local file " + file)
+                    if (Config.it.logMd5ScansAndSkipped) Sys.println("Updating local file " + file)
                     try {
                         path.writeStrings(strings = outLines, separator = "\n")
                     } catch {
                         case exception: scalax.io.ScalaIOException =>
                             exception.getCause() match {
                                 case _: java.nio.charset.UnmappableCharacterException =>
-                                    Console.out.println(s"WARNING: Character could not be written as with encoding $encoding, file will be written using UTF-8: $file")
+                                    Sys.println(s"WARNING: Character could not be written as with encoding $encoding, file will be written using UTF-8: $file")
                                     path.writeStrings(strings = outLines, separator = "\n")(Codec.UTF8)
                                 case _ => throw exception
                             }
@@ -374,7 +394,7 @@ object Md5Recurse {
                     }
                 } // end equal
             } else if (file.exists) {
-                if (!file.delete()) Console.out.println("Failed to delete " + file)
+                if (!file.delete()) Sys.println("Failed to delete " + file)
             }
         } catch {
             case _: scalax.io.ScalaIOException => Console.err.println("Error occurred writing file: " + file)
@@ -389,7 +409,7 @@ object Md5Recurse {
             if (isFileUpdated || dataFile.lastModified() < greatestLastModifiedTimestampInDir || Config.it.alwaysUpdateLocal || l.isEmpty) {
                 writeMd5DataCommon(dataFile, l, printer, encoding, writeBOM)
                 //            } else {
-                //                if (Config.it.logMd5ScansAndSkipped) Console.out.println("Skipping local file " + dataFile)
+                //                if (Config.it.logMd5ScansAndSkipped) Sys.println("Skipping local file " + dataFile)
             }
         }
     }
@@ -401,8 +421,8 @@ object Md5Recurse {
     def printMd5Hashes(dirPath: File, md5s: List[Md5FileInfo]) {
         if (md5s.nonEmpty) {
             // dirPath will be null if single file scan
-            if (dirPath != null) Console.out.println(">" + md5s.head.getDirectoryPath)
-            for (md5 <- md5s) println(md5.exportMd5Line)
+            if (dirPath != null) Sys.println(">" + md5s.head.getDirectoryPath)
+            for (md5 <- md5s) Sys.println(md5.exportMd5Line)
             Console.out.flush()
         }
     }
@@ -482,7 +502,7 @@ object Md5Recurse {
         if (Config.it.doPrintMissing && globalDirSet.isDefined) {
             for ((_, md5FileInfo: Md5FileInfo) <- globalDirSet.get
                  if !new File(dir, md5FileInfo.getFileInfo.getName).exists()) {
-                Console.out.println("Missing: " + md5FileInfo.getFileInfo.getDirectoryPath() + File.separatorChar + md5FileInfo.getFileInfo.getName)
+                Sys.println("Missing: " + md5FileInfo.getFileInfo.getDirectoryPath() + File.separatorChar + md5FileInfo.getFileInfo.getName)
             }
         }
 
@@ -497,10 +517,10 @@ object Md5Recurse {
                 isFileUpdated = true
                 val fInfoMd5Option = Md5FileInfo.readFileGenerateMd5Sum(f, config.useFileAttributes)
                 if (fInfoMd5Option.isEmpty) {
-                    if (config.logMd5Scans) Console.out.println(debugInfo + " " + fInfoMd5Option + " Error Reading file")
+                    if (config.logMd5Scans) Sys.println(debugInfo + " " + fInfoMd5Option + " Error Reading file")
                     failureMsgs += "Error reading file " + f
                 } else {
-                    if (config.logMd5Scans) Console.out.println(debugInfo + " " + fInfoMd5Option.get)
+                    if (config.logMd5Scans) Sys.println(debugInfo + " " + fInfoMd5Option.get)
                     md5s += fInfoMd5Option.get
                 }
             }
@@ -541,18 +561,19 @@ object Md5Recurse {
             val recordedMd5InfoOption: Option[Md5FileInfo] = getNewestMd5FileInfo()
             if (recordedMd5InfoOption.isDefined) {
                 if (config.logMd5ScansSkippedAndPrintDetails) {
-                    Console.out.println(currentFileInfo.getPath())
+                    Sys.println(currentFileInfo.getPath())
                 }
                 val recordedMd5Info: Md5FileInfo = recordedMd5InfoOption.get
                 val recordedFileInfo = recordedMd5Info.getFileInfo
                 val currentLastModified = currentFileInfo.getLastModified()
                 val previousLastModified = recordedFileInfo.getLastModified()
                 if (config.logMd5ScansSkippedAndPrintDetails) {
-                    Console.out.println("Cur lastMod=" + currentLastModified + ", len=" + recordedFileInfo.getSize())
-                    Console.out.println("Rec lastMod=" + previousLastModified + ", len=" + recordedFileInfo.getSize() + ", md5=" + recordedMd5Info.md5String)
+                    Sys.println("Cur lastMod=" + currentLastModified + ", len=" + recordedFileInfo.getSize())
+                    Sys.println("Cur lastMod=" + currentLastModified + ", len=" + recordedFileInfo.getSize())
+                    Sys.println("Rec lastMod=" + previousLastModified + ", len=" + recordedFileInfo.getSize() + ", md5=" + recordedMd5Info.md5String)
                 }
                 val isFileTimestampIdentical = recordedFileInfo.isLastModifiedEqualTo(currentFileInfo)
-                if (Config.it.doPrintModified && !isFileTimestampIdentical) Console.out.println("Modified: " + f)
+                if (Config.it.doPrintModified && !isFileTimestampIdentical) Sys.println("Modified: " + f)
                 if (isFileTimestampIdentical || Config.it.doVerifyModified) {
                     //  still check if file size change, to generate new md5
                     if (Config.it.doVerify) {
@@ -563,7 +584,7 @@ object Md5Recurse {
                             val fInfoMd5 = fInfoMd5Option.get
                             if (fInfoMd5.md5String != recordedMd5Info.md5String) {
                                 val msgPrefix = if (isFileTimestampIdentical) "" else " but with modified timestamp"
-                                val msg = s"Failed verification$msgPrefix: original=${recordedMd5Info.md5String}(${recordedMd5Info.getFileInfo.getLastModifiedString()}) " +
+                                val msg = s"Failed verification$msgPrefix: original=${recordedMd5Info.md5String} (${recordedMd5Info.getFileInfo.getLastModifiedString()}) " +
                                     s"current=${fInfoMd5.md5String}(${fInfoMd5.getFileInfo.getLastModifiedString()}) ${fInfoMd5.filePath}"
                                 if (!Config.it.quiet) {
                                     Console.err.print(msg)
@@ -571,13 +592,13 @@ object Md5Recurse {
                                 failureMsgs += msg
                                 failures += recordedMd5Info
                             } else {
-                                if (config.logMd5Scans) Console.out.println("Verified " + f)
+                                if (config.logMd5Scans) Sys.println("Verified " + f)
                             }
                             md5s += fInfoMd5
                         }
                     } else {
                         // Old non-verified file (and we are not rereading all files)
-                        if (config.logMd5ScansAndSkipped) Console.out.println("Hash exists with matching file timestamp, file read skipped: " + f)
+                        if (config.logMd5ScansAndSkipped) Sys.println("Hash exists with matching file timestamp, file read skipped: " + f)
                         if (config.useFileAttributes && config.alwaysUpdateLocal) Md5FileInfo.updateMd5FileAttribute(f, recordedMd5Info)
                         md5s += recordedMd5Info // timestamp updated on windows NTFS if fileAttributes written
                     }
@@ -586,7 +607,7 @@ object Md5Recurse {
                     if (Config.it.doGenerateMd5ForNewAndExistingNewerFiles) {
                         generateMd5(true)
                     } else {
-                        if (config.logMd5ScansAndSkipped) Console.out.println("Updated file-timestamp, read skipped due to disabled scan: " + f)
+                        if (config.logMd5ScansAndSkipped) Sys.println("Updated file-timestamp, read skipped due to disabled scan: " + f)
                     }
                 }
             } else {
@@ -594,7 +615,7 @@ object Md5Recurse {
                 if (config.doGenerateMd5ForNewAndExistingNewerFiles) {
                     generateMd5(false)
                 } else {
-                    if (config.logMd5ScansAndSkipped) Console.out.println("New file, read skipped due to disabled scan: " + f)
+                    if (config.logMd5ScansAndSkipped) Sys.println("New file, read skipped due to disabled scan: " + f)
                 }
             }
         }
@@ -671,7 +692,7 @@ object Md5Recurse {
             })
         ) {
             // If I evaluate dir inside for-loop with ';dir = dirMap._1' then the ordering of the traversal changes
-            if (Config.debugLog) Console.out.println("Writing outside dir: " + dir)
+            if (Config.debugLog) Sys.println("Writing outside dir: " + dir)
             dataFileUpdater.updateFilesIncludePendingChanges(dir, fileSet.removeDirListMap(dir).get)
         }
         dataFileUpdater.updateFilesFinalPendingChanges()
@@ -690,7 +711,7 @@ object Md5Recurse {
         val md5dataPath = dirPath / filenameToDelete
         if (md5dataPath.exists) {
             for (p <- dirPath ** filenameToDelete) {
-                Console.out.println("Deleting local md5sum file '" + p.path + "' due to '" + Config.it.disableMd5ForDirFilename + "' file found")
+                Sys.println("Deleting local md5sum file '" + p.path + "' due to '" + Config.it.disableMd5ForDirFilename + "' file found")
                 p.delete()
             }
         }
@@ -715,7 +736,7 @@ object Md5Recurse {
                         }
                     }
                 } else {
-                    if (!Config.it.quiet) Console.out.println(Config.it.disableMd5ForDirFilename + " found - skipped " + dir)
+                    if (!Config.it.quiet) Sys.println(Config.it.disableMd5ForDirFilename + " found - skipped " + dir)
                     val dirPath = Path.fromString(dir.getPath)
                     if (Config.it.writeMd5DataPrDirectory) recursivelyDeleteLocalMd5WithMessageIfExists(dirPath, Config.it.md5sumName)
                 }
@@ -726,9 +747,9 @@ object Md5Recurse {
                 postScan(file, md5s, failureMd5s, failureMessages, isFileUpdated, greatestLastModifiedTimestampInDir)
             }
         } else if (Config.it.doPrintMissing) {
-            Console.out.println("MissingDir: " + dirOrFile)
+            Sys.println("MissingDir: " + dirOrFile)
             for ((f, _) <- fileSet.getDir(dirOrFile).get) {
-                Console.out.println("  " + f)
+                Sys.println("  " + f)
             }
         }
     }
@@ -772,9 +793,9 @@ object Md5Recurse {
                 f: File =>
                     if (f.getName == config.md5sumName /* || f.getName == config.md5dataName - todo delete */ ) {
                         if (f.delete()) {
-                            Console.out.println("Deleted " + f)
+                            Sys.println("Deleted " + f)
                         } else {
-                            Console.out.println("Failed to delete " + f)
+                            Sys.println("Failed to delete " + f)
                         }
                     }
             })
@@ -789,14 +810,12 @@ object Md5Recurse {
                 Config.it = config
                 FileUtil.silenceReadErrors = config.silenceWarnings
                 if (config.log != null) {
-                    // This causes subsequent system.out.println and println() to write to file in specified charset
-                    // Alternatively (better) change all prints to go through my custom printer, and use both println and write-to-file
-                    val outStream = new PrintStream(config.log, config.encoding)
-                    System.setOut(outStream)
-                    System.setErr(outStream) // This runs after parsing so won't affect error-output from wrong parameters
+                    // This causes subsequent system.out.println and Sys.println() to write to file in specified charset
+                    // Alternatively (better) change all prints to go through my custom printer, and use both Sys.println and write-to-file
+                    Sys.setPrintOutput(config.log, config.encoding)
                 }
                 for (d <- config.srcDirs if !d.exists()) {
-                    if (!config.quiet) Console.out.println("Src folder does not exist: " + d)
+                    if (!config.quiet) Sys.println("Src folder does not exist: " + d)
                 }
                 if (config.deleteMd5) {
                     deleteMd5s(config)
@@ -804,22 +823,22 @@ object Md5Recurse {
                     if (!config.quiet) {
                         val prefix = "Storage enabled:"
                         if (config.useFileAttributes) {
-                            Console.out.println(s"$prefix File attributes")
+                            Sys.println(s"$prefix File attributes")
                         }
                         if (config.readMd5DataPrDirectory) {
                             val postfixLocalStorage = "Local MD5 files pr directory"
                             if (config.writeMd5DataPrDirectory) {
-                                Console.out.println(s"$prefix $postfixLocalStorage")
+                                Sys.println(s"$prefix $postfixLocalStorage")
                             } else {
-                                Console.out.println(s"$prefix Will read but not update $postfixLocalStorage")
+                                Sys.println(s"$prefix Will read but not update $postfixLocalStorage")
                             }
                         }
                         if (config.readMd5DataGlobally) {
                             val postfixLocalStorage = "Global MD5 data file"
                             if (config.writeMd5DataGlobally) {
-                                Console.out.println(s"$prefix $postfixLocalStorage")
+                                Sys.println(s"$prefix $postfixLocalStorage")
                             } else {
-                                Console.out.println(s"$prefix Will read but not update $postfixLocalStorage")
+                                Sys.println(s"$prefix Will read but not update $postfixLocalStorage")
                             }
                         }
                     }
