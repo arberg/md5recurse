@@ -268,7 +268,7 @@ class LocalFileUpdateTest extends FlatSpec with TestConfig with TestData {
                 localMd5FilePath.lines()(Codec.UTF8).exists(_.contains("danish_øæåØÆÅ")) should be(theCodec == Codec.UTF8)
             }
 
-            val commonParams = Array("--local-update-all", testDirPath.path)
+            val commonParams = Array(testDirPath.path)
             deleteMd5FileAttributes(testDirPath)
             md5Recurse(md5ToolParam ++ commonParams)
             verify("UTF-8 default", Codec.UTF8)

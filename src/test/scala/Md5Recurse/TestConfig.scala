@@ -26,6 +26,10 @@ trait TestConfig extends TestSuite with TestHelper {
   val MD5SUM_EXT = ".md5"
 
   val GLOBAL_BASE_FILENAME = "_global.md5data"
+  val TEST_EXECUTION_ARCHIVE_DIR = "build/testExecutionArchive"
+  // Archive path so that we can run all tests, and see individual test results. Each test has to manually copy
+  // Use with f.testDir.copyTo(TEST_EXECUTION_ARCHIVE_PATH / "test_globalDir - should detect changes for identical lastModified timestamp")
+  val TEST_EXECUTION_ARCHIVE_PATH = Path.fromString(TEST_EXECUTION_ARCHIVE_DIR)
   val TEST_EXECUTION_DIR = "build/testExecution"
   val TEST_EXECUTION_DIR_PATH = Path.fromString(TEST_EXECUTION_DIR)
   val TEST_EXECUTION_DIR_FILE = new File(TEST_EXECUTION_DIR)
@@ -34,6 +38,8 @@ trait TestConfig extends TestSuite with TestHelper {
   val TEST_EXECUTION_GLOBAL_FILE: Path = TEST_EXECUTION_GLOBAL_DIR_PATH / GLOBAL_BASE_FILENAME
   val SRC_TEST_RES_FILES_DIR = "src/test/res/files"
   private val SRC_TEST_RES_DIR_PATH = Path.fromString(SRC_TEST_RES_FILES_DIR)
+
+  TEST_EXECUTION_ARCHIVE_PATH.deleteRecursively(true) // Delete the archive before any tests run
 
   def pathContainsFile(path: Path): Boolean = {
     path.children().flatMap(child => if (child.isDirectory) child.children() else List(child)).exists(_.isFile)

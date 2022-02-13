@@ -128,7 +128,7 @@ class Md5RecurseTest extends FlatSpec with TestConfig with TestData {
 
         // Generate global file, then check no missing is printed
         md5Recurse(params :+ testDirPath.path)
-        md5RecurseGetOutput(paramsMissing :+ testDirPath.path, false) should not include ("Missing")
+        md5RecurseGetOutput(paramsMissing :+ testDirPath.path, false) should not include ("Missing:")
 
         val newFile = testDirPath / "newFile.foobar"
         newFile.write(NEW_CONTENT_STRING)
@@ -141,8 +141,8 @@ class Md5RecurseTest extends FlatSpec with TestConfig with TestData {
         file2.delete()
 
         def assertOutput(output: String): Unit = {
-            output should include(s"Missing $file1PathString")
-            output should include(s"Missing $file2PathString")
+            output should include(s"Missing: $file1PathString")
+            output should include(s"Missing: $file2PathString")
         }
 
         assertOutput(md5RecurseGetOutput(paramsMissing :+ testDirPath.path))
@@ -169,9 +169,9 @@ class Md5RecurseTest extends FlatSpec with TestConfig with TestData {
         def assertOutput(output: String): Unit = {
             val outputLines: Array[String] = output.split(Sys.lineSeparator)
             // all three lines below are pretty equal
-//            output should include("Modified " + filePathString)
-            outputLines.exists(_ == "Modified " + filePathString) should be(true)
-//            outputLines.exists(_.matches("^Modified.*" + file2.name + "$")) should be(true)
+//            output should include("Modified: " + filePathString)
+            outputLines.exists(_ == "Modified: " + filePathString) should be(true)
+//            outputLines.exists(_.matches("^Modified:.*" + file2.name + "$")) should be(true)
         }
 
         println("-------- AFTER Modifing files ---- doing " + paramOnlyPrintModified)
@@ -232,8 +232,8 @@ class Md5RecurseTest extends FlatSpec with TestConfig with TestData {
 
         md5Recurse(params)
         (testDir / "simple.log").write("new content")
-        md5RecurseGetOutput(params, true) should include("Modified " + filePathString)
-        md5RecurseGetOutput(params, true) should not include ("Modified " + filePathString)
+        md5RecurseGetOutput(params, true) should include("Modified: " + filePathString)
+        md5RecurseGetOutput(params, true) should not include ("Modified: " + filePathString)
     }
 
     //    "Md5Recurse find missing files without global dir" should "fail" in {
@@ -374,25 +374,32 @@ class Md5RecurseTest extends FlatSpec with TestConfig with TestData {
         val testDirPath = copyTestResources / "simple"
         val localMd5FilePath = testDirPath / Path(MD5SUM_EXT)
 
+        // First run once to generate localMd5File (this is not the test)
         md5Recurse("-g", TEST_EXECUTION_GLOBAL_DIR, "--local", testDirPath.path)
 
         // Now remove the comment from the .md5 line, and check that the missing comment is not detected, meaning we did not read the local file
-        localMd5FilePath.exists should be(true)
-        val lines = localMd5FilePath.lines().toList
-        val content = lines.tail.mkString
-        localMd5FilePath.write(content)
+        def destroyLocalFileContentSoMd5RecurseShouldComplain(): Unit = {
+            localMd5FilePath.exists should be(true)
+            val lines = localMd5FilePath.lines().toList
+            val content = lines.tail.mkString
+            localMd5FilePath.write(content)
+        }
 
-        def runAndCheckMissingComment(params: Array[String], expectWarning: Boolean) {
+        def runAndCheckMissingComment(params: Array[String], expectWarning: Boolean): Unit = {
             val (_, error) = md5RecurseGetOutputAndError(params)
             error.contains("Missing md5data") should be(expectWarning)
         }
 
-        runAndCheckMissingComment(Array("-g", TEST_EXECUTION_GLOBAL_DIR, "--local", testDirPath.path), false)
+        // The run md5Recurse twice, and check it warns when it should read local-md5 file, and then check it doesn't warn when it shouldn't read file.
+        // The latter indicates it didn't read the file, which is what we want to test here
+        destroyLocalFileContentSoMd5RecurseShouldComplain()
+        runAndCheckMissingComment(Array("-g", TEST_EXECUTION_GLOBAL_DIR, "--local", testDirPath.path), expectWarning = false)
+
+        destroyLocalFileContentSoMd5RecurseShouldComplain() // Above writes local files
         // Now check error does contain warning (testing that the test idea still works)
-        runAndCheckMissingComment(Array("--local", testDirPath.path), true)
+        runAndCheckMissingComment(Array("--local", testDirPath.path), expectWarning = true)
     }
 
-    // Test fails because of bug I havn't solved yet
     "Md5Recurse scan single file without dir" should "global and local should be updated" in {
         val testDirPath = copyTestResources
         val filepath1 = testDirPath / "dummy1.log"
@@ -428,7 +435,6 @@ class Md5RecurseTest extends FlatSpec with TestConfig with TestData {
     "local file with empty dir" should "delete local files" in {
         val parentTestDir = cleanTestDir
         val dir = new File(parentTestDir, "emptyDir")
-        val filename = new File(dir + "/dummy1.log")
         val fileMd5Sum = new File(dir + "/" + MD5SUM_EXT)
         if (!dir.exists()) dir.mkdir()
         writeFile(fileMd5Sum, "")
@@ -436,8 +442,47 @@ class Md5RecurseTest extends FlatSpec with TestConfig with TestData {
 
         Md5Recurse.main(Array("--local", dir.getPath))
 
+        // After last md5Recurse execution right above
+        Path.fromString(dir.getPath).copyTo(TEST_EXECUTION_ARCHIVE_PATH / "local file with empty dir should delete local files")
+
         fileMd5Sum.exists() should be(false)
        }
+
+    "with --log and no encoding" should "print to log with utf-8" in {
+        val testDir = copyTestResources
+        val logFile = s"$TEST_EXECUTION_GLOBAL_DIR/out.log"
+        val fileWithNonAsciiChars = testDir / "Utf-8-æøåÆØÅ-\u4e16\u754c\u4f60\u597d\uff01.log"
+        fileWithNonAsciiChars.write("some content to create file")
+
+        new File(logFile).exists() should be(false) // pre-test
+
+        // Default encoding should be UTF-8
+        md5Recurse("--log", logFile, "--globaldir", TEST_EXECUTION_GLOBAL_DIR, "-V", "3", testDir.toAbsolute.path)
+
+        testDir.copyTo(TEST_EXECUTION_ARCHIVE_PATH / "with --log and no encoding should print to log with utf-8")
+
+        new File(logFile).exists() should be(true)
+        val logLines = Path.fromString(logFile).lines()(codec = Codec.UTF8)
+        logLines.mkString("\n").contains("Utf-8-æøåÆØÅ-\u4e16\u754c\u4f60\u597d\uff01.log") should be(true)
+    }
+
+    "with --log and iso encoding" should "print to log with iso-8859-1" in {
+        val testDir = copyTestResources
+        val logFile = s"$TEST_EXECUTION_GLOBAL_DIR/out.log"
+        val fileWithNonAsciiChars = testDir / "ISO-8859-1-æøåÆØÅ.log"
+        fileWithNonAsciiChars.write("some content to create file")
+
+        new File(logFile).exists() should be(false) // pre-test
+
+        // Default encoding should be UTF-8
+        md5Recurse("--log", logFile, "--globaldir", TEST_EXECUTION_GLOBAL_DIR, "--encoding", "iso-8859-1", "-V", "3", testDir.toAbsolute.path)
+
+        testDir.copyTo(TEST_EXECUTION_ARCHIVE_PATH / "with --log and iso encoding should print to log with iso-8859-1")
+
+        new File(logFile).exists() should be(true)
+        val logLines = Path.fromString(logFile).lines()(codec = Codec.ISO8859)
+        logLines.mkString("\n").contains("ISO-8859-1-æøåÆØÅ.log") should be(true)
+    }
 
     "Md5Recurse simple no-arg" should "print error" in {
         md5RecurseGetError(Array()) should include("Error: Missing argument")

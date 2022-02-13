@@ -3,6 +3,7 @@ package Md5Recurse
 import better.files
 import org.scalatest.{FreeSpec, Matchers}
 import scalax.file.Path
+import scalax.file.defaultfs.DefaultPath
 
 
 class Md5RecurseCheckTest extends FreeSpec with TestConfig with TestData with Matchers {
@@ -109,7 +110,7 @@ class Md5RecurseCheckTest extends FreeSpec with TestConfig with TestData with Ma
             fileToChange.write(NEW_CONTENT_STRING)
 
             val out = md5RecurseGetOutput(Array(paramDisableFileAttributes, paramGlobalDir, globalDir.path, "-V", "3", paramCheckOnly, testDir.toAbsolute.path))
-            out should not include(fileToChange.name)
+            out should include(", read skipped due to disabled scan: "+fileToChange.toRealPath().path) // Prefix is 'Updated file-timestamp' or 'New file'
             out should not include(MD5_NEW_CONTENT)
             globalFile.lines().exists(line => line.contains(MD5_NEW_CONTENT)) should not be(true)
         }
@@ -120,10 +121,20 @@ class Md5RecurseCheckTest extends FreeSpec with TestConfig with TestData with Ma
                 md5Recurse(paramDisableFileAttributes, paramGlobalDir, f.testDir.path, "-V", "3", f.testDir.toAbsolute.path);
                 replaceMd5LineInFile(f.globalFile, "simple.log", "a" * 32)
 
-                val failVerificationMessage = "Failed verification: original=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa current=c4ca4238a0b923820dcc509a6f75849b"
-                md5RecurseGetError(Array(paramDisableFileAttributes, paramGlobalDir, f.testDir.path, "-V", "3", paramCheckOnly, f.testDir.toAbsolute.path)) should include(failVerificationMessage)
+                // Split into two lines because md5RecurseGetError has weird postfix of dates, that I don't know why
+                val failVerificationMessageExclFilePath =
+                    "Failed verification: original=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa (2017-09-17 20:50:57) current=c4ca4238a0b923820dcc509a6f75849b(2017-09-17 20:50:57)"
+                val err = md5RecurseGetError(
+                    Array(paramDisableFileAttributes, paramGlobalDir, f.testDir.path, "-V", "3", paramCheckOnly, f.testDir.toAbsolute.path)
+                )
+                // After last md5Recurse execution right above
+                f.testDir.copyTo(TEST_EXECUTION_ARCHIVE_PATH / "test_globalDir - should detect changes for identical lastModified timestamp")
+
+                err should include (failVerificationMessageExclFilePath)
                 val logFile: files.File = better.files.File(f.testDir.path).list.filter(f => f.name.endsWith("_global_failed.log")).toList.head
-                logFile.lines().exists(_.contains(failVerificationMessage)) should be(true)
+
+                println("Content of _global_failed.log:\n" + logFile.lines())
+                logFile.lines().exists(_.contains(failVerificationMessageExclFilePath)) should be(true)
             }
 
 

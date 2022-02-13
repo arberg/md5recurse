@@ -132,8 +132,8 @@ trait TestHelper extends TestSuite with Matchers {
     }
     val output = streamOut.toString
     val error = streamErr.toString
-    if (doEcho) print(output)
-    if (doEcho) Console.err.print(error)
+    if (doEcho && output.nonEmpty) println(output)
+    if (doEcho && error.nonEmpty) println("stderr: \n" + error + "\n")
     (output, error)
   }
 
@@ -142,6 +142,7 @@ trait TestHelper extends TestSuite with Matchers {
   }
 
   def md5Recurse(params: String*) {
+    println("Running with params: "+params)
     Md5Recurse.main(params.toArray)
   }
 
